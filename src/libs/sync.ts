@@ -6,7 +6,7 @@ import { db } from './db';
 const DEBUG_SYNC = true;
 const D = (...a: any[]) => DEBUG_SYNC && console.log(...a);
 
-const BASE_URL = 'http://192.168.18.25:8000'; // <-- tu LAN IP
+const BASE_URL = 'http://192.168.100.151:8000'; // <-- tu LAN IP
 const TOKEN: string | null = null;
 const MAX_RETRIES = 8;
 
@@ -24,7 +24,7 @@ type PendingOp = {
 type FileRow = {
   local_uri: string;
   filename: string;
-  tipo: 'Conjuntiva' | 'Labio';
+  tipo: 'Conjuntiva' | 'Labio' | 'Indice';
   visita: number;
 };
 
@@ -100,19 +100,23 @@ async function preEnrichPendingRecords() {
 }
 
 // --- mapeo tipo humano -> código backend ---
-function mapTipoToCode(tipo: string): 'CONJ' | 'LAB' {
-  return (tipo || '').toUpperCase().startsWith('CONJ') ? 'CONJ' : 'LAB';
+function mapTipoToCode(tipo: string): 'CONJ' | 'LAB' | 'IND' {
+  const t = (tipo || '').toUpperCase();
+  if (t.startsWith('CONJ')) return 'CONJ';
+  if (t.startsWith('LAB')) return 'LAB';
+  return 'IND';
 }
 
-// --- subida de archivo: incluye type + nro_visita ---
+// --- subida de archivo: incluye type + nro_visita + index ---
 async function uploadFile(
   endpoint: string,
   field: string,
   fileUri: string,
   filename: string,
   client_uuid: string,
-  tipoCode: 'CONJ' | 'LAB',
-  visita: number
+  tipoCode: 'CONJ' | 'LAB' | 'IND',
+  visita: number,
+  index: number
 ) {
   D('[SYNC] POST multipart', {
     url: BASE_URL + endpoint,
@@ -124,9 +128,10 @@ async function uploadFile(
   });
 
   const form = new FormData();
-  form.append(field, { uri: fileUri, name: filename, type: 'image/jpeg' } as any);
-  form.append('type', tipoCode);                 // requerido por tu backend
-  form.append('nro_visita', String(visita));     // requerido por tu backend
+  form.append(field, { uri: fileUri, name: filename, type: 'image/png' } as any);
+  form.append('type', tipoCode);
+  form.append('nro_visita', String(visita));
+  form.append('index', String(index));  // índice de la foto (1, 2, etc.)
 
   const res = await fetch(BASE_URL + endpoint, {
     method: 'POST',
@@ -267,6 +272,10 @@ export async function trySync() {
       });
 
       try {
+        // Extraer index del filename (formato: DNI_Tipo_Visita_INDEX.png)
+        const match = row.filename.match(/_([0-9]+)\.png$/);
+        const photoIndex = match ? parseInt(match[1], 10) : 1;
+        
         await uploadFile(
           op.endpoint,
           op.form_field || 'file',
@@ -274,7 +283,8 @@ export async function trySync() {
           row.filename,
           op.client_uuid,
           mapTipoToCode(row.tipo),
-          row.visita
+          row.visita,
+          photoIndex
         );
 
         db.withTransactionSync(() => {

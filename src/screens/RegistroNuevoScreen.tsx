@@ -67,6 +67,7 @@ export default function RegistroNuevoScreen() {
   });
   const [fotosConjuntiva, setFotosConjuntiva] = useState<Foto[]>([]);
   const [fotosLabio, setFotosLabio] = useState<Foto[]>([]);
+  const [fotosIndice, setFotosIndice] = useState<Foto[]>([]);
 
   // Lógica para selectores en cascada
   const provinciasDisponibles = useMemo(() => {
@@ -133,7 +134,7 @@ export default function RegistroNuevoScreen() {
     }
   };
 
-  const onPickFoto = async (tipo: 'Conjuntiva' | 'Labio', from: 'camera' | 'gallery') => {
+  const onPickFoto = async (tipo: 'Conjuntiva' | 'Labio' | 'Indice', from: 'camera' | 'gallery') => {
     try {
       if (from === 'camera') {
         const res = await ImagePicker.launchCameraAsync({ allowsEditing: false, quality: 1.0 });
@@ -149,7 +150,9 @@ export default function RegistroNuevoScreen() {
               return { uri: manipResult.uri };
             })
           );
-          if (tipo === 'Conjuntiva') setFotosConjuntiva(p => [...p, ...convertidas]); else setFotosLabio(p => [...p, ...convertidas]);
+          if (tipo === 'Conjuntiva') setFotosConjuntiva(p => [...p, ...convertidas]);
+          else if (tipo === 'Labio') setFotosLabio(p => [...p, ...convertidas]);
+          else setFotosIndice(p => [...p, ...convertidas]);
         }
       } else {
         const res = await ImagePicker.launchImageLibraryAsync({
@@ -167,7 +170,9 @@ export default function RegistroNuevoScreen() {
               return { uri: manipResult.uri };
             })
           );
-          if (tipo === 'Conjuntiva') setFotosConjuntiva(p => [...p, ...convertidas]); else setFotosLabio(p => [...p, ...convertidas]);
+          if (tipo === 'Conjuntiva') setFotosConjuntiva(p => [...p, ...convertidas]);
+          else if (tipo === 'Labio') setFotosLabio(p => [...p, ...convertidas]);
+          else setFotosIndice(p => [...p, ...convertidas]);
         }
       }
     } catch {
@@ -292,8 +297,8 @@ export default function RegistroNuevoScreen() {
     if (!dp.dni) return Alert.alert('Falta DNI', 'Ingresa el DNI.');
     if (dp.dni.length !== 8) return Alert.alert('DNI inválido', 'El DNI debe tener 8 dígitos.');
     if (!nroVisita) return Alert.alert('Falta Visita', 'Ingresa el número de visita.');
-    if (!fotosConjuntiva.length && !fotosLabio.length) {
-      return Alert.alert('Sin fotos', 'Agrega al menos una foto (Conjuntiva o Labio).');
+    if (!fotosConjuntiva.length && !fotosLabio.length && !fotosIndice.length) {
+      return Alert.alert('Sin fotos', 'Agrega al menos una foto (Conjuntiva, Labio o Índice).');
     }
 
     try {
@@ -302,7 +307,8 @@ export default function RegistroNuevoScreen() {
         { ...do_, semanasEmbarazo: semanasEmbarazoCalc },
         Number(nroVisita),
         fotosConjuntiva,
-        fotosLabio
+        fotosLabio,
+        fotosIndice
       );
       Alert.alert(
         '✅ Registro guardado', 
@@ -314,7 +320,7 @@ export default function RegistroNuevoScreen() {
           }
         ]
       );
-      setFotosConjuntiva([]); setFotosLabio([]);
+      setFotosConjuntiva([]); setFotosLabio([]); setFotosIndice([]);
     } catch (e) {
       console.error(e);
       Alert.alert('Error', 'No se pudo guardar localmente.');
@@ -335,7 +341,21 @@ export default function RegistroNuevoScreen() {
       />
       <Input label="Nombre" value={dp.nombre} onChangeText={(v: string) => setDp(s => ({ ...s, nombre: v }))} />
       <Input label="Apellido" value={dp.apellido} onChangeText={(v: string) => setDp(s => ({ ...s, apellido: v }))} />
-      <Input label="Edad" value={dp.edad} onChangeText={(v: string) => setDp(s => ({ ...s, edad: v }))} keyboardType="number-pad" />
+      <Input 
+        label="Edad" 
+        value={dp.edad} 
+        onChangeText={(v: string) => {
+          const edad = onlyDigits(v);
+          const edadNum = parseInt(edad);
+          if (edad === '' || (edadNum >= 0 && edadNum <= 130)) {
+            setDp(s => ({ ...s, edad }));
+          } else if (edadNum > 130) {
+            Alert.alert('Edad inválida', 'La edad máxima permitida es 130 años.');
+          }
+        }} 
+        keyboardType="number-pad"
+        maxLength={3}
+      />
       
       {/* Selectores de Región, Provincia y Distrito */}
       <View style={{ marginBottom: 10 }}>
@@ -478,6 +498,13 @@ export default function RegistroNuevoScreen() {
         <SmallBtn color="#3949ab" icon="images" onPress={() => onPickFoto('Labio', 'gallery')} text="Galería" />
       </Row>
       <PreviewGrid fotos={fotosLabio} />
+
+      <Text style={localStyles.h3}>Índice</Text>
+      <Row>
+        <SmallBtn color="#e53935" icon="camera" onPress={() => onPickFoto('Indice', 'camera')} text="Cámara" />
+        <SmallBtn color="#3949ab" icon="images" onPress={() => onPickFoto('Indice', 'gallery')} text="Galería" />
+      </Row>
+      <PreviewGrid fotos={fotosIndice} />
 
       <TouchableOpacity style={[commonStyles.btn, commonStyles.btnSuccess]} onPress={guardarRegistro}>
         <Text style={commonStyles.btnText}>Guardar registro</Text>

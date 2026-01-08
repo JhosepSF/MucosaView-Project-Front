@@ -42,6 +42,7 @@ export default function AgregarFotosScreen() {
   const [nroVisita] = useState('2'); // No editable - Segunda visita
   const [fotosConjuntiva, setFotosConjuntiva] = useState<Foto[]>([]);
   const [fotosLabio, setFotosLabio] = useState<Foto[]>([]);
+  const [fotosIndice, setFotosIndice] = useState<Foto[]>([]);
 
   // Obstétricos de la visita actual (v2, v3, etc.)
   const [do2, setDo2] = useState<DatosObstetricos>({
@@ -59,7 +60,7 @@ export default function AgregarFotosScreen() {
   const handleDniChange = (v: string) => setDni(onlyDigits(v).slice(0, 8));
   const handleFechaChange = (v: string) => setDo2(s => ({ ...s, fechaUltimoPeriodo: formatYYYYMMDD(v) }));
 
-  const onPickFoto = async (tipo: 'Conjuntiva' | 'Labio', from: 'camera' | 'gallery') => {
+  const onPickFoto = async (tipo: 'Conjuntiva' | 'Labio' | 'Indice', from: 'camera' | 'gallery') => {
     try {
       if (from === 'camera') {
         const res = await ImagePicker.launchCameraAsync({ allowsEditing: false, quality: 1.0 });
@@ -75,7 +76,9 @@ export default function AgregarFotosScreen() {
               return { uri: manipResult.uri };
             })
           );
-          if (tipo === 'Conjuntiva') setFotosConjuntiva(p => [...p, ...convertidas]); else setFotosLabio(p => [...p, ...convertidas]);
+          if (tipo === 'Conjuntiva') setFotosConjuntiva(p => [...p, ...convertidas]);
+          else if (tipo === 'Labio') setFotosLabio(p => [...p, ...convertidas]);
+          else setFotosIndice(p => [...p, ...convertidas]);
         }
       } else {
         const res = await ImagePicker.launchImageLibraryAsync({
@@ -93,7 +96,9 @@ export default function AgregarFotosScreen() {
               return { uri: manipResult.uri };
             })
           );
-          if (tipo === 'Conjuntiva') setFotosConjuntiva(p => [...p, ...convertidas]); else setFotosLabio(p => [...p, ...convertidas]);
+          if (tipo === 'Conjuntiva') setFotosConjuntiva(p => [...p, ...convertidas]);
+          else if (tipo === 'Labio') setFotosLabio(p => [...p, ...convertidas]);
+          else setFotosIndice(p => [...p, ...convertidas]);
         }
       }
     } catch {
@@ -105,7 +110,7 @@ export default function AgregarFotosScreen() {
     if (!dni) return Alert.alert('Falta DNI', 'Ingresa el DNI.');
     if (dni.length !== 8) return Alert.alert('DNI inválido', 'El DNI debe tener 8 dígitos.');
     if (!nroVisita) return Alert.alert('Falta Visita', 'Ingresa el número de visita.');
-    if (!fotosConjuntiva.length && !fotosLabio.length) {
+    if (!fotosConjuntiva.length && !fotosLabio.length && !fotosIndice.length) {
       return Alert.alert('Sin fotos', 'Selecciona al menos una foto.');
     }
 
@@ -117,6 +122,7 @@ export default function AgregarFotosScreen() {
         Number(nroVisita),
         fotosConjuntiva,
         fotosLabio,
+        fotosIndice,
         obst 
       );
 
@@ -169,6 +175,13 @@ export default function AgregarFotosScreen() {
         <SmallBtn color="#3949ab" icon="images" onPress={() => onPickFoto('Labio', 'gallery')} text="Galería" />
       </Row>
       <PreviewGrid fotos={fotosLabio} />
+
+      <Text style={localStyles.h2}>Índice</Text>
+      <Row>
+        <SmallBtn color="#e53935" icon="camera" onPress={() => onPickFoto('Indice', 'camera')} text="Cámara" />
+        <SmallBtn color="#3949ab" icon="images" onPress={() => onPickFoto('Indice', 'gallery')} text="Galería" />
+      </Row>
+      <PreviewGrid fotos={fotosIndice} />
 
       <TouchableOpacity style={[commonStyles.btn, commonStyles.btnSuccess]} onPress={adjuntar}>
         <Text style={commonStyles.btnText}>Adjuntar fotos y datos</Text>

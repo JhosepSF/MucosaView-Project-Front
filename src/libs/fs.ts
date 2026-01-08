@@ -20,11 +20,11 @@ export async function moveIntoAppDir(srcUri: string, dstPath: string) {
 
 export function buildPhotoName(
   dni: string,
-  tipo: 'Conjuntiva' | 'Labio',
+  tipo: 'Conjuntiva' | 'Labio' | 'Indice',
   visita: number,
   idx: number
 ) {
-  return `${dni}_${tipo}_${visita}_${idx + 1}.jpg`;
+  return `${dni}_${tipo}_${visita}_${idx + 1}.png`;
 }
 
 export function buildPhotoDst(dni: string, visita: number, filename: string) {

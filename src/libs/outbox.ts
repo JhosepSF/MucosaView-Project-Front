@@ -29,7 +29,8 @@ export async function saveRegistroNuevoOffline(
   do_: DatosObstetricos,
   nroVisita: number,
   fotosConj: FotoIn[],
-  fotosLab: FotoIn[]
+  fotosLab: FotoIn[],
+  fotosInd: FotoIn[]
 ) {
   const client_uuid = uuid.v4() as string;
   const now = new Date().toISOString();
@@ -52,8 +53,8 @@ export async function saveRegistroNuevoOffline(
   });
 
   // 2) Mueve cada foto al FileSystem y encola su subida (una transacción por foto)
-  let idx = 0;
-  const pushFotos = async (arr: FotoIn[], tipo: 'Conjuntiva' | 'Labio') => {
+  const pushFotos = async (arr: FotoIn[], tipo: 'Conjuntiva' | 'Labio' | 'Indice') => {
+    let idx = 0;
     for (const f of arr) {
       const filename = buildPhotoName(dp.dni, tipo, nroVisita, idx++);
       const dstPath = buildPhotoDst(dp.dni, nroVisita, filename);
@@ -85,6 +86,7 @@ export async function saveRegistroNuevoOffline(
 
   await pushFotos(fotosConj, 'Conjuntiva');
   await pushFotos(fotosLab, 'Labio');
+  await pushFotos(fotosInd, 'Indice');
 
   return client_uuid;
 }
@@ -94,6 +96,7 @@ export async function enqueueAgregarFotosOffline(
   nroVisita: number,
   fotosConj: FotoIn[],
   fotosLab: FotoIn[],
+  fotosInd: FotoIn[],
   obstetricos?: DatosObstetricos  
 ) {
   const client_uuid = String(uuid.v4());
@@ -123,8 +126,8 @@ export async function enqueueAgregarFotosOffline(
   }
 
   // (B) Encolar fotos como antes
-  let idx = 0;
-  const pushFotos = async (arr: FotoIn[], tipo: 'Conjuntiva'|'Labio') => {
+  const pushFotos = async (arr: FotoIn[], tipo: 'Conjuntiva' | 'Labio' | 'Indice') => {
+    let idx = 0;
     for (const f of arr) {
       const filename = buildPhotoName(dni, tipo, nroVisita, idx++);
       const dst = buildPhotoDst(dni, nroVisita, filename);
@@ -160,6 +163,7 @@ export async function enqueueAgregarFotosOffline(
 
   await pushFotos(fotosConj, 'Conjuntiva');
   await pushFotos(fotosLab, 'Labio');
+  await pushFotos(fotosInd, 'Indice');
 
   return client_uuid;
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Modal } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { debugDumpQueue, trySync } from '../libs/sync';
@@ -19,6 +19,7 @@ type QueueItem = {
 export default function SyncQueueScreen() {
   const [items, setItems] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -36,8 +37,13 @@ export default function SyncQueueScreen() {
   useEffect(load, []);
 
   const onSyncNow = async () => {
-    await trySync();
-    load();
+    setSyncing(true);
+    try {
+      await trySync();
+      load();
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const renderItem = ({ item }: { item: QueueItem }) => (
@@ -64,15 +70,39 @@ export default function SyncQueueScreen() {
       </Text>
 
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-        <TouchableOpacity style={[commonStyles.btn, localStyles.btnSync]} onPress={onSyncNow}>
-          <Ionicons name="sync" size={18} color="#fff" style={{ marginRight: 6 }} />
-          <Text style={commonStyles.btnText}>Sincronizar</Text>
+        <TouchableOpacity 
+          style={[commonStyles.btn, localStyles.btnSync]} 
+          onPress={onSyncNow}
+          disabled={syncing}
+        >
+          {syncing ? (
+            <>
+              <ActivityIndicator size="small" color="#fff" style={{ marginRight: 6 }} />
+              <Text style={commonStyles.btnText}>Sincronizando...</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="sync" size={18} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={commonStyles.btnText}>Sincronizar</Text>
+            </>
+          )}
         </TouchableOpacity>
         <TouchableOpacity style={[commonStyles.btn, localStyles.btnRefresh]} onPress={load}>
           <Ionicons name="refresh" size={18} color="#fff" style={{ marginRight: 6 }} />
           <Text style={commonStyles.btnText}>Actualizar</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Modal de carga durante sincronización */}
+      <Modal transparent visible={syncing} animationType="fade">
+        <View style={localStyles.modalOverlay}>
+          <View style={localStyles.modalContent}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={localStyles.modalText}>Sincronizando datos...</Text>
+            <Text style={localStyles.modalSubtext}>Por favor espera</Text>
+          </View>
+        </View>
+      </Modal>
 
       <FlatList
         data={items}
@@ -195,6 +225,35 @@ const localStyles = StyleSheet.create({
     marginTop: 16,
   },
   emptySubtext: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    minWidth: 200,
+  },
+  modalText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginTop: 16,
+  },
+  modalSubtext: {
     fontSize: 14,
     color: COLORS.textSecondary,
     marginTop: 4,
