@@ -2,13 +2,19 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, Image, Alert,
-  ScrollView, TextInputProps,
+  ScrollView, TextInputProps, Platform, ActivityIndicator,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as Location from 'expo-location';
 import NetInfo from '@react-native-community/netinfo';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { saveRegistroNuevoOffline } from '../libs/outbox';
+import { commonStyles, COLORS } from '../styles';
+import { ubigeoData } from '../data/ubigeo';
 
 type Foto = { uri: string };
 
@@ -36,15 +42,21 @@ type DatosObstetricos = {
 
 /** Helpers de formato */
 const onlyDigits = (s: string) => s.replace(/\D/g, '');
-const formatYMD = (input: string) => {
-  const d = onlyDigits(input).slice(0, 8); // YYYYMMDD (máx 8 dígitos)
-  if (d.length <= 4) return d;
-  if (d.length <= 6) return `${d.slice(0, 4)}-${d.slice(4)}`;
-  return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}`;
+
+/** Normalizar texto: sin tildes, minúsculas, sin espacios extras */
+const normalizeText = (text: string): string => {
+  return text
+    .toLowerCase()
+    .normalize('NFD') // Descompone caracteres con tildes
+    .replace(/[\u0300-\u036f]/g, '') // Elimina tildes
+    .trim();
 };
 
 export default function RegistroNuevoScreen() {
-  const [nroVisita, setNroVisita] = useState('1');
+  const navigation = useNavigation<any>();
+  const [nroVisita] = useState('1'); // No editable
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [capturandoUbicacion, setCapturandoUbicacion] = useState(false);
   const [dp, setDp] = useState<DatosPersonales>({
     dni: '', nombre: '', apellido: '', edad: '',
     region: '', provincia: '', distrito: '', direccion: '', mapsUrl: '',
@@ -55,6 +67,29 @@ export default function RegistroNuevoScreen() {
   });
   const [fotosConjuntiva, setFotosConjuntiva] = useState<Foto[]>([]);
   const [fotosLabio, setFotosLabio] = useState<Foto[]>([]);
+
+  // Lógica para selectores en cascada
+  const provinciasDisponibles = useMemo(() => {
+    if (!dp.region) return [];
+    const dpto = ubigeoData.find(d => d.nombre === dp.region);
+    return dpto?.provincias || [];
+  }, [dp.region]);
+
+  const distritosDisponibles = useMemo(() => {
+    if (!dp.provincia) return [];
+    const prov = provinciasDisponibles.find(p => p.nombre === dp.provincia);
+    return prov?.distritos || [];
+  }, [dp.provincia, provinciasDisponibles]);
+
+  // Resetear provincia y distrito cuando cambia la región
+  const handleRegionChange = (newRegion: string) => {
+    setDp(s => ({ ...s, region: newRegion, provincia: '', distrito: '' }));
+  };
+
+  // Resetear distrito cuando cambia la provincia
+  const handleProvinciaChange = (newProvincia: string) => {
+    setDp(s => ({ ...s, provincia: newProvincia, distrito: '' }));
+  };
 
   const calcularSemanas = (fechaISO: string) => {
     if (!fechaISO) return 0;
@@ -74,27 +109,65 @@ export default function RegistroNuevoScreen() {
     setDp(s => ({ ...s, dni: digits }));
   };
 
-  /** onChange Fecha: auto YYYY-MM-DD */
-  const handleFechaChange = (v: string) => {
-    const fmt = formatYMD(v);
-    setDo(s => ({ ...s, fechaUltimoPeriodo: fmt }));
+  /** onChange Fecha con validación de 40 semanas */
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === 'ios'); // iOS mantiene abierto
+    
+    if (selectedDate) {
+      const today = new Date();
+      const diffMs = today.getTime() - selectedDate.getTime();
+      const weeks = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
+      
+      if (weeks > 40) {
+        Alert.alert('⚠️ Fecha inválida', 'La fecha seleccionada resulta en más de 40 semanas de embarazo. Por favor, elige una fecha más reciente.');
+        return;
+      }
+      
+      if (weeks < 0) {
+        Alert.alert('⚠️ Fecha inválida', 'No puedes seleccionar una fecha futura.');
+        return;
+      }
+      
+      const formattedDate = selectedDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      setDo(s => ({ ...s, fechaUltimoPeriodo: formattedDate }));
+    }
   };
 
   const onPickFoto = async (tipo: 'Conjuntiva' | 'Labio', from: 'camera' | 'gallery') => {
     try {
       if (from === 'camera') {
-        const res = await ImagePicker.launchCameraAsync({ allowsEditing: false, quality: 0.8 });
+        const res = await ImagePicker.launchCameraAsync({ allowsEditing: false, quality: 1.0 });
         if (!res.canceled && res.assets?.length) {
-          const nuevas = res.assets.map(a => ({ uri: a.uri }));
-          if (tipo === 'Conjuntiva') setFotosConjuntiva(p => [...p, ...nuevas]); else setFotosLabio(p => [...p, ...nuevas]);
+          // Convertir a PNG sin compresión (formato crudo)
+          const convertidas = await Promise.all(
+            res.assets.map(async (asset) => {
+              const manipResult = await ImageManipulator.manipulateAsync(
+                asset.uri,
+                [], // Sin transformaciones
+                { compress: 0, format: ImageManipulator.SaveFormat.PNG } // PNG sin compresión
+              );
+              return { uri: manipResult.uri };
+            })
+          );
+          if (tipo === 'Conjuntiva') setFotosConjuntiva(p => [...p, ...convertidas]); else setFotosLabio(p => [...p, ...convertidas]);
         }
       } else {
         const res = await ImagePicker.launchImageLibraryAsync({
-          allowsEditing: false, quality: 0.8, allowsMultipleSelection: true, selectionLimit: 10,
+          allowsEditing: false, quality: 1.0, allowsMultipleSelection: true, selectionLimit: 10,
         } as any);
         if (!res.canceled && res.assets?.length) {
-          const nuevas = res.assets.map(a => ({ uri: a.uri }));
-          if (tipo === 'Conjuntiva') setFotosConjuntiva(p => [...p, ...nuevas]); else setFotosLabio(p => [...p, ...nuevas]);
+          // Convertir a PNG sin compresión (formato crudo)
+          const convertidas = await Promise.all(
+            res.assets.map(async (asset) => {
+              const manipResult = await ImageManipulator.manipulateAsync(
+                asset.uri,
+                [], // Sin transformaciones
+                { compress: 0, format: ImageManipulator.SaveFormat.PNG } // PNG sin compresión
+              );
+              return { uri: manipResult.uri };
+            })
+          );
+          if (tipo === 'Conjuntiva') setFotosConjuntiva(p => [...p, ...convertidas]); else setFotosLabio(p => [...p, ...convertidas]);
         }
       }
     } catch {
@@ -102,55 +175,116 @@ export default function RegistroNuevoScreen() {
     }
   };
 
-  /** Captura GPS SIEMPRE (offline o online) y genera el Maps URL localmente */
-  const capturarGps = async () => {
+  /** Captura GPS SIEMPRE y completa dirección si hay internet */
+  const capturarUbicacion = async () => {
+    setCapturandoUbicacion(true);
     try {
+      // 1. Siempre captura GPS primero (funciona offline)
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permiso denegado', 'Se requiere permiso de ubicación.');
+        setCapturandoUbicacion(false);
         return;
       }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const { latitude, longitude } = loc.coords;
       const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
 
+      // Guarda coordenadas inmediatamente
       setDp(s => ({ ...s, lat: latitude, lng: longitude, mapsUrl }));
-      Alert.alert('GPS guardado', 'Coordenadas y link de Maps listos. La dirección se completará con Internet.');
-    } catch {
-      Alert.alert('Error', 'No se pudo obtener la ubicación.');
-    }
-  };
 
-  /** Completa dirección vía reverse geocoding (requiere Internet). */
-  const completarDireccion = async () => {
-    try {
+      // 2. Verifica si hay internet para completar dirección
       const net = await NetInfo.fetch();
-      if (!net.isConnected || net.isInternetReachable === false) {
-        Alert.alert('Sin Internet', 'Conéctate para completar la dirección automáticamente.');
-        return;
-      }
+      const hasInternet = net.isConnected && net.isInternetReachable !== false;
 
-      let lat = dp.lat, lng = dp.lng;
-      if (lat == null || lng == null) {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') return Alert.alert('Permiso denegado', 'Se requiere permiso de ubicación.');
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        lat = loc.coords.latitude; lng = loc.coords.longitude;
-        setDp(s => ({ ...s, lat, lng, mapsUrl: `https://www.google.com/maps?q=${lat},${lng}` }));
+      if (hasInternet) {
+        // Tiene internet: completa dirección automáticamente
+        try {
+          const [addr] = await Location.reverseGeocodeAsync({ latitude, longitude });
+          
+          // Intentar mapear región/departamento
+          const regionGeo = addr?.region ?? '';
+          const subregionGeo = addr?.subregion ?? '';
+          const cityGeo = addr?.city ?? '';
+          const districtGeo = addr?.district ?? '';
+          
+          // Normalizar textos del GPS
+          const regionNorm = normalizeText(regionGeo);
+          const subregionNorm = normalizeText(subregionGeo);
+          const cityNorm = normalizeText(cityGeo);
+          const districtNorm = normalizeText(districtGeo);
+          
+          // Buscar departamento
+          const departamento = ubigeoData.find(d => {
+            const deptoNorm = normalizeText(d.nombre);
+            return deptoNorm.includes(regionNorm) ||
+                   regionNorm.includes(deptoNorm) ||
+                   deptoNorm.includes(subregionNorm) ||
+                   subregionNorm.includes(deptoNorm);
+          });
+          
+          if (departamento) {
+            // Buscar provincia
+            const provincia = departamento.provincias.find(p => {
+              const provNorm = normalizeText(p.nombre);
+              return provNorm.includes(cityNorm) ||
+                     cityNorm.includes(provNorm) ||
+                     provNorm.includes(subregionNorm) ||
+                     subregionNorm.includes(provNorm) ||
+                     provNorm.includes(districtNorm) ||
+                     districtNorm.includes(provNorm);
+            });
+            
+            if (provincia) {
+              // Buscar distrito
+              const distrito = provincia.distritos.find(d => {
+                const distNorm = normalizeText(d.nombre);
+                return distNorm.includes(districtNorm) ||
+                       districtNorm.includes(distNorm) ||
+                       distNorm.includes(cityNorm) ||
+                       cityNorm.includes(distNorm);
+              });
+              
+              // Actualizar todos los campos encontrados
+              setDp(s => ({
+                ...s,
+                region: departamento.nombre,
+                provincia: provincia.nombre,
+                distrito: distrito?.nombre || '',
+                direccion: [addr?.street, addr?.name, addr?.postalCode].filter(Boolean).join(' ') || s.direccion,
+              }));
+              
+              if (distrito) {
+                Alert.alert('✅ Ubicación completa', '¡Región, provincia y distrito encontrados automáticamente!');
+              } else {
+                Alert.alert('✅ Ubicación parcial', 'Región y provincia encontradas. Selecciona el distrito manualmente.');
+              }
+            } else {
+              setDp(s => ({
+                ...s,
+                region: departamento.nombre,
+                direccion: [addr?.street, addr?.name, addr?.postalCode].filter(Boolean).join(' ') || s.direccion,
+              }));
+              Alert.alert('✅ Ubicación parcial', 'Región encontrada. Selecciona provincia y distrito manualmente.');
+            }
+          } else {
+            setDp(s => ({
+              ...s,
+              direccion: [addr?.street, addr?.name, addr?.postalCode].filter(Boolean).join(' ') || s.direccion,
+            }));
+            Alert.alert('⚠️ GPS guardado', 'No se pudo mapear la región. Selecciona manualmente desde los catálogos.');
+          }
+        } catch (error) {
+          Alert.alert('⚠️ GPS guardado', 'Coordenadas guardadas. No se pudo obtener la dirección (puedes seleccionar manualmente).');
+        }
+      } else {
+        // Sin internet: solo GPS
+        Alert.alert('📍 GPS guardado', 'Coordenadas guardadas. Selecciona manualmente región, provincia y distrito.');
       }
-
-      const [addr] = await Location.reverseGeocodeAsync({ latitude: lat!, longitude: lng! });
-      setDp(s => ({
-        ...s,
-        region: addr?.region ?? s.region,
-        provincia: addr?.city ?? addr?.subregion ?? s.provincia,
-        distrito: addr?.district ?? s.distrito,
-        direccion: [addr?.street, addr?.name, addr?.postalCode].filter(Boolean).join(' ') || s.direccion,
-        mapsUrl: s.mapsUrl || `https://www.google.com/maps?q=${lat},${lng}`,
-      }));
-      Alert.alert('Listo', 'Dirección completada.');
-    } catch {
-      Alert.alert('Error', 'No se pudo completar la dirección.');
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo obtener la ubicación.');
+    } finally {
+      setCapturandoUbicacion(false);
     }
   };
 
@@ -170,7 +304,16 @@ export default function RegistroNuevoScreen() {
         fotosConjuntiva,
         fotosLabio
       );
-      Alert.alert('Guardado', 'Registro almacenado y encolado para sincronizar.');
+      Alert.alert(
+        '✅ Registro guardado', 
+        'El registro se almacenó y se sincronizará cuando haya conexión.',
+        [
+          { 
+            text: 'OK', 
+            onPress: () => navigation.navigate('MenuRegistro')
+          }
+        ]
+      );
       setFotosConjuntiva([]); setFotosLabio([]);
     } catch (e) {
       console.error(e);
@@ -179,10 +322,10 @@ export default function RegistroNuevoScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.h1}>Nuevo registro</Text>
+    <ScrollView contentContainerStyle={localStyles.container}>
+      <Text style={localStyles.h1}>Nuevo registro</Text>
 
-      <Text style={styles.h2}>Datos Personales</Text>
+      <Text style={localStyles.h2}>Datos Personales</Text>
       <Input
         label="DNI"
         value={dp.dni}
@@ -193,56 +336,151 @@ export default function RegistroNuevoScreen() {
       <Input label="Nombre" value={dp.nombre} onChangeText={(v: string) => setDp(s => ({ ...s, nombre: v }))} />
       <Input label="Apellido" value={dp.apellido} onChangeText={(v: string) => setDp(s => ({ ...s, apellido: v }))} />
       <Input label="Edad" value={dp.edad} onChangeText={(v: string) => setDp(s => ({ ...s, edad: v }))} keyboardType="number-pad" />
-      <Input label="Región" value={dp.region} onChangeText={(v: string) => setDp(s => ({ ...s, region: v }))} />
-      <Input label="Provincia" value={dp.provincia} onChangeText={(v: string) => setDp(s => ({ ...s, provincia: v }))} />
-      <Input label="Distrito" value={dp.distrito} onChangeText={(v: string) => setDp(s => ({ ...s, distrito: v }))} />
+      
+      {/* Selectores de Región, Provincia y Distrito */}
+      <View style={{ marginBottom: 10 }}>
+        <Text style={localStyles.label}>Región / Departamento</Text>
+        <View style={localStyles.pickerContainer}>
+          <Picker
+            selectedValue={dp.region}
+            onValueChange={handleRegionChange}
+            style={localStyles.picker}
+          >
+            <Picker.Item label="Selecciona una región..." value="" />
+            {ubigeoData.map(dpto => (
+              <Picker.Item key={dpto.nombre} label={dpto.nombre} value={dpto.nombre} />
+            ))}
+          </Picker>
+        </View>
+      </View>
+
+      <View style={{ marginBottom: 10 }}>
+        <Text style={localStyles.label}>Provincia</Text>
+        <View style={localStyles.pickerContainer}>
+          <Picker
+            selectedValue={dp.provincia}
+            onValueChange={handleProvinciaChange}
+            style={localStyles.picker}
+            enabled={!!dp.region}
+          >
+            <Picker.Item label={dp.region ? "Selecciona una provincia..." : "Primero selecciona región"} value="" />
+            {provinciasDisponibles.map(prov => (
+              <Picker.Item key={prov.nombre} label={prov.nombre} value={prov.nombre} />
+            ))}
+          </Picker>
+        </View>
+      </View>
+
+      <View style={{ marginBottom: 10 }}>
+        <Text style={localStyles.label}>Distrito</Text>
+        <View style={localStyles.pickerContainer}>
+          <Picker
+            selectedValue={dp.distrito}
+            onValueChange={(v: string) => setDp(s => ({ ...s, distrito: v }))}
+            style={localStyles.picker}
+            enabled={!!dp.provincia}
+          >
+            <Picker.Item label={dp.provincia ? "Selecciona un distrito..." : "Primero selecciona provincia"} value="" />
+            {distritosDisponibles.map(dist => (
+              <Picker.Item key={dist.id} label={dist.nombre} value={dist.nombre} />
+            ))}
+          </Picker>
+        </View>
+      </View>
+
       <Input label="Dirección" value={dp.direccion} onChangeText={(v: string) => setDp(s => ({ ...s, direccion: v }))} />
       <Input label="Maps URL" value={dp.mapsUrl} onChangeText={(v: string) => setDp(s => ({ ...s, mapsUrl: v }))} placeholder="https://www.google.com/maps?q=lat,lng" />
 
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={capturarGps}>
-          <Ionicons name="navigate" size={18} color="#fff" />
-          <Text style={styles.btnText}> Capturar GPS (offline)</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={completarDireccion}>
-          <Ionicons name="earth" size={18} color="#fff" />
-          <Text style={styles.btnText}> Completar dirección</Text>
+      {/* Sección de Ubicación con ayuda */}
+      <View style={localStyles.gpsSection}>
+        <View style={localStyles.gpsHeader}>
+          <Text style={localStyles.gpsTitle}>📍 Ubicación del Paciente</Text>
+          <TouchableOpacity onPress={() => Alert.alert(
+            'Cómo funciona',
+            '📍 El botón captura automáticamente:\n\n✅ Coordenadas GPS (siempre, con o sin internet)\n✅ Dirección (si hay internet)\n\n⚠️ Región, Provincia y Distrito:\nDebes seleccionarlos manualmente desde los catálogos desplegables.\n\nSin internet, las coordenadas se guardan y sincronizarán después.',
+            [{ text: 'Entendido' }]
+          )}>
+            <Ionicons name="help-circle" size={24} color={COLORS.info} />
+          </TouchableOpacity>
+        </View>
+        <Text style={localStyles.gpsHint}>
+          Captura GPS y luego selecciona región, provincia y distrito manualmente.
+        </Text>
+        <TouchableOpacity 
+          style={[commonStyles.btn, commonStyles.btnSecondary, { marginTop: 8 }]} 
+          onPress={capturarUbicacion}
+          disabled={capturandoUbicacion}
+        >
+          {capturandoUbicacion ? (
+            <>
+              <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+              <Text style={commonStyles.btnText}>Capturando ubicación...</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="location" size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={commonStyles.btnText}>Capturar Ubicación</Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.h2}>Datos Obstétricos</Text>
+      <Text style={localStyles.h2}>Datos Obstétricos</Text>
       <Input label="Pulsaciones por minuto" value={do_.pulsaciones} onChangeText={(v: string) => setDo(s => ({ ...s, pulsaciones: v }))} keyboardType="number-pad" />
       <Input label="Hemoglobina (g/dL)" value={do_.hemoglobina} onChangeText={(v: string) => setDo(s => ({ ...s, hemoglobina: v }))} keyboardType="decimal-pad" />
       <Input label="Oxígeno en sangre (%)" value={do_.oxigeno} onChangeText={(v: string) => setDo(s => ({ ...s, oxigeno: v }))} keyboardType="decimal-pad" />
-      <Input
-        label="Fecha del último periodo (YYYY-MM-DD)"
-        value={do_.fechaUltimoPeriodo}
-        onChangeText={handleFechaChange}
-        keyboardType="number-pad"
-        maxLength={10} // YYYY-MM-DD
-        placeholder="YYYY-MM-DD"
-      />
-      <Text style={styles.calcText}>Semanas de embarazo (auto): <Text style={{ color: '#fff', fontWeight: '800' }}>{semanasEmbarazoCalc}</Text></Text>
+      
+      {/* DatePicker para fecha del último periodo */}
+      <View style={{ marginBottom: 10 }}>
+        <Text style={localStyles.label}>Fecha del último periodo</Text>
+        <TouchableOpacity 
+          style={localStyles.dateButton}
+          onPress={() => setShowDatePicker(true)}
+        >
+          <Ionicons name="calendar" size={20} color={COLORS.primary} style={{ marginRight: 8 }} />
+          <Text style={localStyles.dateText}>
+            {do_.fechaUltimoPeriodo || 'Seleccionar fecha'}
+          </Text>
+        </TouchableOpacity>
+        {showDatePicker && (
+          <DateTimePicker
+            value={do_.fechaUltimoPeriodo ? new Date(do_.fechaUltimoPeriodo) : new Date()}
+            mode="date"
+            display="default"
+            onChange={handleDateChange}
+            maximumDate={new Date()}
+          />
+        )}
+      </View>
+      
+      <Text style={localStyles.calcText}>Semanas de embarazo: <Text style={{ color: COLORS.primary, fontWeight: '800' }}>{semanasEmbarazoCalc}</Text></Text>
 
-      <Input label="N° de visita" value={nroVisita} onChangeText={(v: string) => setNroVisita(v)} keyboardType="number-pad" />
+      {/* N° de visita no editable */}
+      <View style={{ marginBottom: 10 }}>
+        <Text style={localStyles.label}>N° de visita</Text>
+        <View style={localStyles.readOnlyInput}>
+          <Text style={localStyles.readOnlyText}>{nroVisita}</Text>
+          <Text style={localStyles.readOnlyHint}>(Primera visita)</Text>
+        </View>
+      </View>
 
-      <Text style={styles.h2}>Fotos</Text>
-      <Text style={styles.h3}>Conjuntiva</Text>
+      <Text style={localStyles.h2}>Fotos</Text>
+      <Text style={localStyles.h3}>Conjuntiva</Text>
       <Row>
         <SmallBtn color="#e53935" icon="camera" onPress={() => onPickFoto('Conjuntiva', 'camera')} text="Cámara" />
         <SmallBtn color="#3949ab" icon="images" onPress={() => onPickFoto('Conjuntiva', 'gallery')} text="Galería" />
       </Row>
       <PreviewGrid fotos={fotosConjuntiva} />
 
-      <Text style={styles.h3}>Labio</Text>
+      <Text style={localStyles.h3}>Labio</Text>
       <Row>
         <SmallBtn color="#e53935" icon="camera" onPress={() => onPickFoto('Labio', 'camera')} text="Cámara" />
         <SmallBtn color="#3949ab" icon="images" onPress={() => onPickFoto('Labio', 'gallery')} text="Galería" />
       </Row>
       <PreviewGrid fotos={fotosLabio} />
 
-      <TouchableOpacity style={[styles.btn, styles.btnSave]} onPress={guardarRegistro}>
-        <Text style={styles.btnSaveText}>Guardar registro</Text>
+      <TouchableOpacity style={[commonStyles.btn, commonStyles.btnSuccess]} onPress={guardarRegistro}>
+        <Text style={commonStyles.btnText}>Guardar registro</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -255,8 +493,8 @@ type InputProps = {
 
 const Input: React.FC<InputProps> = ({ label, value, onChangeText, ...rest }) => (
   <View style={{ marginBottom: 10 }}>
-    <Text style={styles.label}>{label}</Text>
-    <TextInput value={value} onChangeText={onChangeText} placeholderTextColor="#99a" {...rest} style={styles.input} />
+    <Text style={localStyles.label}>{label}</Text>
+    <TextInput value={value} onChangeText={onChangeText} placeholderTextColor="#99a" {...rest} style={localStyles.input} />
   </View>
 );
 
@@ -266,36 +504,161 @@ const Row: React.FC<React.PropsWithChildren> = ({ children }) => (
 
 type SmallBtnProps = { color: string; icon: any; text: string; onPress: () => void };
 const SmallBtn: React.FC<SmallBtnProps> = ({ color, icon, text, onPress }) => (
-  <TouchableOpacity style={[styles.smallBtn, { backgroundColor: color }]} onPress={onPress}>
+  <TouchableOpacity style={[localStyles.smallBtn, { backgroundColor: color }]} onPress={onPress}>
     <Ionicons name={icon} size={18} color="#fff" />
-    <Text style={styles.smallBtnText}> {text}</Text>
+    <Text style={localStyles.smallBtnText}> {text}</Text>
   </TouchableOpacity>
 );
 
 const PreviewGrid: React.FC<{ fotos: Foto[] }> = ({ fotos }) => (
-  <View style={styles.previewGrid}>
-    {fotos.map((f, i) => <Image key={i} source={{ uri: f.uri }} style={styles.thumb} />)}
+  <View style={localStyles.previewGrid}>
+    {fotos.map((f, i) => <Image key={i} source={{ uri: f.uri }} style={localStyles.thumb} />)}
   </View>
 );
 
-const styles = StyleSheet.create({
-  container: { padding: 20, backgroundColor: '#0e1220', flexGrow: 1 },
-  h1: { color: '#fff', fontWeight: '800', fontSize: 20, marginBottom: 10 },
-  h2: { color: '#fff', fontWeight: '800', fontSize: 16, marginTop: 14, marginBottom: 6 },
-  h3: { color: '#cfd3ff', fontWeight: '700', marginTop: 6 },
-  label: { color: '#aab' },
-  input: {
-    backgroundColor: '#1a2033', color: '#fff', borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: '#2c3350',
+// Estilos específicos de esta pantalla
+const localStyles = StyleSheet.create({
+  container: { padding: 20, backgroundColor: COLORS.bg, flexGrow: 1 },
+  h1: { color: COLORS.text, fontWeight: '800', fontSize: 24, marginBottom: 16, textAlign: 'center' },
+  h2: { 
+    color: COLORS.primary, 
+    fontWeight: '800', 
+    fontSize: 18, 
+    marginTop: 20, 
+    marginBottom: 12,
+    paddingBottom: 6,
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.border,
   },
-  calcText: { color: '#aab', marginBottom: 6, marginTop: -4 },
-  btn: { alignItems: 'center', paddingVertical: 12, borderRadius: 12, marginTop: 10, flexDirection: 'row', justifyContent: 'center' },
-  btnText: { color: '#fff', fontWeight: '700' },
-  btnSecondary: { backgroundColor: '#3949ab' },
-  smallBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10 },
-  smallBtnText: { color: '#fff', fontWeight: '700' },
+  h3: { color: COLORS.text, fontWeight: '700', fontSize: 16, marginTop: 12, marginBottom: 8 },
+  label: { color: COLORS.text, fontWeight: '600', marginBottom: 4, fontSize: 14 },
+  input: {
+    backgroundColor: '#FFFFFF', 
+    color: COLORS.text, 
+    borderRadius: 12,
+    paddingHorizontal: 14, 
+    paddingVertical: 12, 
+    borderWidth: 1, 
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  calcText: { color: COLORS.subtext, marginBottom: 6, marginTop: -4, fontSize: 14 },
+  btnFlex: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  smallBtn: { 
+    flex: 1, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    paddingVertical: 12, 
+    paddingHorizontal: 14, 
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  smallBtnText: { color: '#fff', fontWeight: '700', marginLeft: 4 },
   previewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 10 },
-  thumb: { width: 90, height: 90, borderRadius: 10, backgroundColor: '#222' },
-  btnSave: { backgroundColor: '#00b894' },
-  btnSaveText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  thumb: { 
+    width: 90, 
+    height: 90, 
+    borderRadius: 10, 
+    backgroundColor: COLORS.border,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  gpsSection: {
+    backgroundColor: '#E8F4F8',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#B3E5FC',
+  },
+  gpsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  gpsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  gpsHint: {
+    fontSize: 13,
+    color: COLORS.subtext,
+    fontStyle: 'italic',
+    marginBottom: 4,
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  dateText: {
+    color: COLORS.text,
+    fontSize: 15,
+  },
+  readOnlyInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.ghostBg,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  readOnlyText: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  readOnlyHint: {
+    color: COLORS.subtext,
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  pickerContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+    overflow: 'hidden',
+  },
+  picker: {
+    color: COLORS.text,
+    height: Platform.OS === 'ios' ? 180 : 50,
+  },
 });
