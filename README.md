@@ -385,8 +385,8 @@ Este proyecto es parte de un trabajo académico.
 
 ## 📞 Soporte
 Para más información:
-- **Manual de Usuario**: Ver documentación en `/docs`
-- **Manual Técnico**: Consultar [Backend README](https://github.com/JhosepSF/MucosaView-Project-Back)
+- **Backend README**: [API Django](https://github.com/JhosepSF/MucosaView-Project-Back)
+- **Formato de Imágenes**: Ver [FORMATO_IMAGENES.md](FORMATO_IMAGENES.md)
 - **Issues**: Reportar en GitHub Issues
 
 ## 🔄 Versiones
