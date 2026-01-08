@@ -235,7 +235,7 @@ await ImageManipulator.manipulateAsync(
 - ✅ Tamaño: ~1.5 MB por foto
 - ✅ Compatible universalmente
 
-Ver [FORMATO_IMAGENES.md](../FORMATO_IMAGENES.md) para más detalles.
+Ver [FORMATO_IMAGENES.md](FORMATO_IMAGENES.md) para más detalles.
 
 ## 📡 Endpoints API Consumidos
 
@@ -348,18 +348,17 @@ npm test
 ```
 
 ## 📈 Rendimiento
-- **Tamaño APK**: ~50 MB
+- **Tamaño APK**: ~100 MB
 - **Uso de RAM**: ~150-200 MB
-- **Almacenamiento**: ~10 MB por 100 pacientes
+- **Almacenamiento**: ~62 MB por paciente (6 fotos)
 - **Tiempo de captura**: < 2 minutos por registro
-- **Sincronización**: ~10-15 segundos por registro completo
+- **Sincronización**: ~20 segundos por registro completo
 
 ## 🔐 Seguridad
 - ✅ Almacenamiento local encriptado (SQLite)
 - ✅ Comunicación HTTPS (producción)
 - ✅ Validación de entrada en cliente y servidor
 - ✅ UUIDs para prevenir duplicados
-- ⚠️ Sin autenticación implementada (requerida para producción)
 
 ## 🚀 Despliegue
 
