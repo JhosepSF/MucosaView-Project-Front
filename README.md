@@ -100,12 +100,10 @@ Front/
 │   ├── libs/             # Lógica de negocio
 │   │   ├── db.ts         # SQLite local
 │   │   ├── outbox.ts     # Patrón Outbox
-│   │   ├── sync.ts       # Sincronización
+│   │   ├── sync.ts       # Sincronización y Clientes API
 │   │   ├── fs.ts         # Sistema de archivos
 │   │   ├── maintenance.ts # Mantenimiento
 │   │   └── log.ts        # Logging
-│   ├── services/         # Clientes API
-│   │   └── api.ts        # Cliente Axios
 │   ├── data/             # Datos estáticos
 │   │   └── ubigeo.ts     # Catálogo UBIGEO San Martín
 │   └── styles/           # Estilos globales
