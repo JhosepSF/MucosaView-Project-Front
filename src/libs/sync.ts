@@ -6,7 +6,7 @@ import { db } from './db';
 const DEBUG_SYNC = true;
 const D = (...a: any[]) => DEBUG_SYNC && console.log(...a);
 
-const BASE_URL = 'http://192.168.100.151:8000'; // <-- tu LAN IP
+const BASE_URL = 'http://158.69.209.130'; // <-- tu LAN IP
 const TOKEN: string | null = null;
 const MAX_RETRIES = 8;
 
