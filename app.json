@@ -37,8 +37,7 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.tuorg.mucosaviewapp",
-      "usesCleartextTraffic": true
+      "package": "com.tuorg.mucosaviewapp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
