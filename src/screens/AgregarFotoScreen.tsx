@@ -1,7 +1,6 @@
-// src/screens/AgregarFotosScreen.tsx
 import React, { useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, TouchableOpacity, Image, Alert, ScrollView, TextInputProps,
+  View, Text, StyleSheet, TextInput, TouchableOpacity, Image, Alert, ScrollView, TextInputProps, ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -9,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { enqueueAgregarFotosOffline } from '../libs/outbox';
 import { commonStyles, COLORS} from '../styles';
+import { BASE_URL } from '../libs/sync';
 
 type Foto = { uri: string };
 
@@ -39,7 +39,9 @@ const calcularSemanas = (fechaISO: string) => {
 export default function AgregarFotosScreen() {
   const navigation = useNavigation<any>();
   const [dni, setDni] = useState('');
-  const [nroVisita] = useState('2'); // No editable - Segunda visita
+  const [nroVisita, setNroVisita] = useState('');
+  const [nombrePaciente, setNombrePaciente] = useState('');
+  const [buscando, setBuscando] = useState(false);
   const [fotosConjuntiva, setFotosConjuntiva] = useState<Foto[]>([]);
   const [fotosLabio, setFotosLabio] = useState<Foto[]>([]);
   const [fotosIndice, setFotosIndice] = useState<Foto[]>([]);
@@ -59,6 +61,36 @@ export default function AgregarFotosScreen() {
 
   const handleDniChange = (v: string) => setDni(onlyDigits(v).slice(0, 8));
   const handleFechaChange = (v: string) => setDo2(s => ({ ...s, fechaUltimoPeriodo: formatYYYYMMDD(v) }));
+
+  const buscarPaciente = async () => {
+    if (!dni || dni.length !== 8) {
+      return Alert.alert('DNI inválido', 'Ingresa un DNI de 8 dígitos');
+    }
+
+    setBuscando(true);
+    try {
+      const response = await fetch(`${BASE_URL}/api/mucosa/registro/${dni}/info`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setNombrePaciente(`${data.nombre} ${data.apellido}`);
+        setNroVisita(data.siguiente_visita.toString());
+        Alert.alert(
+          '✅ Paciente encontrado',
+          `Nombre: ${data.nombre} ${data.apellido}\nVisitas previas: ${data.total_visitas}\nSiguiente visita: ${data.siguiente_visita}`
+        );
+      } else {
+        Alert.alert('Paciente no encontrado', data.detail || 'No existe un paciente con ese DNI');
+        setNombrePaciente('');
+        setNroVisita('');
+      }
+    } catch (error) {
+      Alert.alert('Error de conexión', 'No se pudo conectar con el servidor');
+      console.error(error);
+    } finally {
+      setBuscando(false);
+    }
+  };
 
   const onPickFoto = async (tipo: 'Conjuntiva' | 'Labio' | 'Indice', from: 'camera' | 'gallery') => {
     try {
@@ -145,22 +177,57 @@ export default function AgregarFotosScreen() {
   return (
     <ScrollView contentContainerStyle={localStyles.container}>
       <Text style={localStyles.h1}>Agregar fotos a registro</Text>
-      <Input label="DNI" value={dni} onChangeText={handleDniChange} keyboardType="number-pad" maxLength={8} />
       
-      {/* N° de visita no editable */}
+      {/* DNI con botón de búsqueda */}
+      <View style={{ marginBottom: 10 }}>
+        <Text style={localStyles.label}>DNI</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <TextInput
+            style={[localStyles.input, { flex: 1 }]}
+            value={dni}
+            onChangeText={handleDniChange}
+            keyboardType="number-pad"
+            maxLength={8}
+            placeholder="Ingresa DNI"
+          />
+          <TouchableOpacity
+            style={[localStyles.btnBuscar, buscando && { opacity: 0.5 }]}
+            onPress={buscarPaciente}
+            disabled={buscando}
+          >
+            {buscando ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="search" size={20} color="#fff" />
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Nombre del paciente (solo lectura) */}
+      {nombrePaciente ? (
+        <View style={{ marginBottom: 10 }}>
+          <Text style={localStyles.label}>Paciente</Text>
+          <View style={localStyles.readOnlyInput}>
+            <Text style={localStyles.readOnlyText}>{nombrePaciente}</Text>
+          </View>
+        </View>
+      ) : null}
+      
+      {/* N° de visita (auto-calculado) */}
       <View style={{ marginBottom: 10 }}>
         <Text style={localStyles.label}>N° de visita</Text>
         <View style={localStyles.readOnlyInput}>
-          <Text style={localStyles.readOnlyText}>{nroVisita}</Text>
-          <Text style={localStyles.readOnlyHint}>(Segunda visita)</Text>
+          <Text style={localStyles.readOnlyText}>{nroVisita || '---'}</Text>
+          <Text style={localStyles.readOnlyHint}>{nroVisita ? '(Auto-calculado)' : '(Busca un paciente)'}</Text>
         </View>
       </View>
 
       {/* Obstétricos de esta visita */}
       <Text style={localStyles.h2}>Datos Obstétricos (visita {nroVisita})</Text>
-      <Input label="Pulsaciones por minuto" value={do2.pulsaciones} onChangeText={(v: string) => setDo2(s => ({ ...s, pulsaciones: v }))} keyboardType="number-pad" />
+      <Input label="Pulsaciones por minuto" value={do2.pulsaciones} onChangeText={(v: string) => setDo2(s => ({ ...s, pulsaciones: v.replace(/\D/g, '') }))} keyboardType="number-pad" />
       <Input label="Hemoglobina (g/dL)" value={do2.hemoglobina} onChangeText={(v: string) => setDo2(s => ({ ...s, hemoglobina: v }))} keyboardType="decimal-pad" />
-      <Input label="Oxígeno en sangre (%)" value={do2.oxigeno} onChangeText={(v: string) => setDo2(s => ({ ...s, oxigeno: v }))} keyboardType="decimal-pad" />
+      <Input label="Oxígeno en sangre (%)" value={do2.oxigeno} onChangeText={(v: string) => { const num = parseInt(v.replace(/\D/g, '') || '0'); setDo2(s => ({ ...s, oxigeno: num > 100 ? '100' : v.replace(/\D/g, '') })); }} keyboardType="number-pad" />
 
       <Text style={localStyles.h2}>Conjuntiva</Text>
       <Row>
@@ -288,5 +355,16 @@ const localStyles = StyleSheet.create({
     color: COLORS.subtext,
     fontSize: 12,
     fontStyle: 'italic',
+  },
+  btnBuscar: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    padding: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
 });

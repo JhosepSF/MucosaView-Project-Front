@@ -49,6 +49,14 @@
           "cameraPermission": "Se necesita la cámara para capturar imágenes clínicas."
         }
       ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
       "expo-font",
       "expo-sqlite",
       "expo-location"

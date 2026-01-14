@@ -251,12 +251,14 @@ export default function RegistroNuevoScreen() {
               });
               
               // Actualizar todos los campos encontrados
+              // Solo actualizar dirección si no hay una escrita por el usuario
+              const direccionGPS = [addr?.street, addr?.name].filter(Boolean).join(', ');
               setDp(s => ({
                 ...s,
                 region: departamento.nombre,
                 provincia: provincia.nombre,
                 distrito: distrito?.nombre || '',
-                direccion: [addr?.street, addr?.name, addr?.postalCode].filter(Boolean).join(' ') || s.direccion,
+                direccion: s.direccion || direccionGPS || '',
               }));
               
               if (distrito) {
@@ -265,17 +267,19 @@ export default function RegistroNuevoScreen() {
                 Alert.alert('✅ Ubicación parcial', 'Región y provincia encontradas. Selecciona el distrito manualmente.');
               }
             } else {
+              const direccionGPS = [addr?.street, addr?.name].filter(Boolean).join(', ');
               setDp(s => ({
                 ...s,
                 region: departamento.nombre,
-                direccion: [addr?.street, addr?.name, addr?.postalCode].filter(Boolean).join(' ') || s.direccion,
+                direccion: s.direccion || direccionGPS || '',
               }));
               Alert.alert('✅ Ubicación parcial', 'Región encontrada. Selecciona provincia y distrito manualmente.');
             }
           } else {
+            const direccionGPS = [addr?.street, addr?.name].filter(Boolean).join(', ');
             setDp(s => ({
               ...s,
-              direccion: [addr?.street, addr?.name, addr?.postalCode].filter(Boolean).join(' ') || s.direccion,
+              direccion: s.direccion || direccionGPS || '',
             }));
             Alert.alert('⚠️ GPS guardado', 'No se pudo mapear la región. Selecciona manualmente desde los catálogos.');
           }
@@ -283,8 +287,8 @@ export default function RegistroNuevoScreen() {
           Alert.alert('⚠️ GPS guardado', 'Coordenadas guardadas. No se pudo obtener la dirección (puedes seleccionar manualmente).');
         }
       } else {
-        // Sin internet: solo GPS
-        Alert.alert('📍 GPS guardado', 'Coordenadas guardadas. Selecciona manualmente región, provincia y distrito.');
+        // Sin internet: solo GPS, NO tocar la dirección que el usuario escribió
+        Alert.alert('📍 GPS guardado', 'Coordenadas guardadas. La dirección que escribiste se mantendrá. Selecciona región, provincia y distrito.');
       }
     } catch (error) {
       Alert.alert('Error', 'No se pudo obtener la ubicación.');
@@ -446,9 +450,9 @@ export default function RegistroNuevoScreen() {
       </View>
 
       <Text style={localStyles.h2}>Datos Obstétricos</Text>
-      <Input label="Pulsaciones por minuto" value={do_.pulsaciones} onChangeText={(v: string) => setDo(s => ({ ...s, pulsaciones: v }))} keyboardType="number-pad" />
+      <Input label="Pulsaciones por minuto" value={do_.pulsaciones} onChangeText={(v: string) => setDo(s => ({ ...s, pulsaciones: v.replace(/\D/g, '') }))} keyboardType="number-pad" />
       <Input label="Hemoglobina (g/dL)" value={do_.hemoglobina} onChangeText={(v: string) => setDo(s => ({ ...s, hemoglobina: v }))} keyboardType="decimal-pad" />
-      <Input label="Oxígeno en sangre (%)" value={do_.oxigeno} onChangeText={(v: string) => setDo(s => ({ ...s, oxigeno: v }))} keyboardType="decimal-pad" />
+      <Input label="Oxígeno en sangre (%)" value={do_.oxigeno} onChangeText={(v: string) => { const num = parseInt(v.replace(/\D/g, '') || '0'); setDo(s => ({ ...s, oxigeno: num > 100 ? '100' : v.replace(/\D/g, '') })); }} keyboardType="number-pad" />
       
       {/* DatePicker para fecha del último periodo */}
       <View style={{ marginBottom: 10 }}>

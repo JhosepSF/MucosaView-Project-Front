@@ -1,12 +1,13 @@
 // src/lib/sync.ts
 import NetInfo from '@react-native-community/netinfo';
 import * as Location from 'expo-location';
+import { Alert } from 'react-native';
 import { db } from './db';
 
 const DEBUG_SYNC = true;
 const D = (...a: any[]) => DEBUG_SYNC && console.log(...a);
 
-const BASE_URL = 'http://158.69.209.130'; // <-- tu LAN IP
+export const BASE_URL = 'http://158.69.209.130/'; // <-- tu LAN IP
 const TOKEN: string | null = null;
 const MAX_RETRIES = 8;
 
@@ -36,9 +37,9 @@ type RecordRow = {
 // --- util: ping host ---
 async function hostCheck() {
   try {
-    const res = await fetch(BASE_URL, { method: 'GET' });
+    const res = await fetch(BASE_URL + '/api/diagnostics/', { method: 'GET' });
     const txt = await res.clone().text();
-    D('[NET][RES]', { status: res.status, url: BASE_URL, ok: res.ok, bodyPreview: txt.slice(0, 120) });
+    D('[NET][RES]', { status: res.status, url: BASE_URL + '/api/diagnostics/', ok: res.ok, bodyPreview: txt.slice(0, 120) });
     D('[SYNC] Host OK:', BASE_URL);
   } catch (e: any) {
     D('[SYNC][HOST][ERR]', e?.message || e);
@@ -150,7 +151,10 @@ async function uploadFile(
     bodyPreview: preview.substring(0, 300),
   });
 
-  if (!res.ok) throw new Error(`upload failed status=${res.status}`);
+  if (!res.ok) {
+    // Incluir detalles del error en el mensaje de excepción
+    throw new Error(`upload failed status=${res.status} body=${preview.substring(0, 200)}`);
+  }
 }
 
 // --- helpers de retries ---
@@ -240,8 +244,37 @@ export async function trySync() {
             db.runSync(`UPDATE records SET sync_status='synced' WHERE client_uuid=?`, [op.client_uuid]);
           }
         });
-      } else {
-        db.withTransactionSync(() => bumpRetryOrDrop(op.id, op.retries));
+      } else {        // Mostrar alerta si es una visita que falló
+        if (isVisita) {
+          const dni = bodyObj?.dni || 'desconocido';
+          const nroVisita = bodyObj?.nro_visita || '?';
+          
+          // Extraer mensaje de error de varias fuentes posibles
+          let errorMsg = 'Error desconocido';
+          if (json) {
+            // Probar diferentes campos de error
+            errorMsg = json.detail || 
+                      json.error || 
+                      json.message ||
+                      (json.lmp_date && json.lmp_date[0]) ||
+                      (json.hemoglobina && json.hemoglobina[0]) ||
+                      (json.pulsaciones && json.pulsaciones[0]) ||
+                      JSON.stringify(json).substring(0, 100);
+          } else if (preview.includes('ValueError') || preview.includes('Error')) {
+            // Si es HTML de error 500, extraer el tipo de error
+            const match = preview.match(/<title>(.*?)<\/title>/);
+            errorMsg = match ? match[1] : `Error ${res.status}`;
+          } else {
+            errorMsg = `Error ${res.status}: ${preview.substring(0, 50)}`;
+          }
+          
+          Alert.alert(
+            '❌ Error en Sincronización',
+            `No se pudo registrar visita ${nroVisita} del paciente DNI ${dni}.\n\nError: ${errorMsg}\n\nSe reintentará automáticamente.`,
+            [{ text: 'OK' }]
+          );
+        }
+                db.withTransactionSync(() => bumpRetryOrDrop(op.id, op.retries));
       }
     } catch (e: any) {
       D('[SYNC][JSON][ERR]', e?.message || e);
@@ -276,21 +309,35 @@ export async function trySync() {
         const match = row.filename.match(/_([0-9]+)\.png$/);
         const photoIndex = match ? parseInt(match[1], 10) : 1;
         
-        await uploadFile(
-          op.endpoint,
-          op.form_field || 'file',
-          row.local_uri,
-          row.filename,
-          op.client_uuid,
-          mapTipoToCode(row.tipo),
-          row.visita,
-          photoIndex
-        );
+        try {
+          await uploadFile(
+            op.endpoint,
+            op.form_field || 'file',
+            row.local_uri,
+            row.filename,
+            op.client_uuid,
+            mapTipoToCode(row.tipo),
+            row.visita,
+            photoIndex
+          );
 
-        db.withTransactionSync(() => {
-          db.runSync(`DELETE FROM pending_ops WHERE id=?`, [op.id]);
-          db.runSync(`UPDATE files SET sync_status='synced' WHERE id=?`, [op.file_id]);
-        });
+          db.withTransactionSync(() => {
+            db.runSync(`DELETE FROM pending_ops WHERE id=?`, [op.id]);
+            db.runSync(`UPDATE files SET sync_status='synced' WHERE id=?`, [op.file_id]);
+          });
+        } catch (uploadErr: any) {
+          // Si el error es "unique set" (foto duplicada), considerarla como ya sincronizada
+          const errMsg = uploadErr?.message || '';
+          if (errMsg.includes('status=400') && errMsg.includes('unique')) {
+            D('[SYNC][FILE] Photo already exists (unique constraint), marking as synced');
+            db.withTransactionSync(() => {
+              db.runSync(`DELETE FROM pending_ops WHERE id=?`, [op.id]);
+              db.runSync(`UPDATE files SET sync_status='synced' WHERE id=?`, [op.file_id]);
+            });
+          } else {
+            throw uploadErr;
+          }
+        }
       } catch (e: any) {
         D('[SYNC][FILE][ERR]', e?.message || e);
         db.withTransactionSync(() => bumpRetryOrDrop(op.id, op.retries));

@@ -2,6 +2,24 @@ import uuid from 'react-native-uuid';
 import { db } from './db';
 import { moveIntoAppDir, buildPhotoName, buildPhotoDst } from './fs';
 
+// Función para obtener hora local de Perú (UTC-5)
+function getPeruTime(): string {
+  const now = new Date();
+  // Obtener UTC en milisegundos
+  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
+  // Ajustar a Perú (UTC-5): restar 5 horas desde UTC
+  const peruTime = new Date(utcTime - (5 * 60 * 60 * 1000));
+  // Formatear como ISO con offset -05:00
+  const year = peruTime.getUTCFullYear();
+  const month = String(peruTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(peruTime.getUTCDate()).padStart(2, '0');
+  const hours = String(peruTime.getUTCHours()).padStart(2, '0');
+  const minutes = String(peruTime.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(peruTime.getUTCSeconds()).padStart(2, '0');
+  const ms = String(peruTime.getUTCMilliseconds()).padStart(3, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${ms}-05:00`;
+}
+
 type FotoIn = { uri: string };
 
 type DatosPersonales = {
@@ -33,8 +51,15 @@ export async function saveRegistroNuevoOffline(
   fotosInd: FotoIn[]
 ) {
   const client_uuid = uuid.v4() as string;
-  const now = new Date().toISOString();
-  const payload = { datos_personales: dp, datos_obstetricos: do_, nro_visita: nroVisita };
+  const now = getPeruTime();
+  
+  // Normalizar fechaUltimoPeriodo: cadena vacía -> null
+  const obstetricosNorm = {
+    ...do_,
+    fechaUltimoPeriodo: do_.fechaUltimoPeriodo || null,
+  };
+  
+  const payload = { datos_personales: dp, datos_obstetricos: obstetricosNorm, nro_visita: nroVisita };
 
   // 1) Inserta el record y encola el POST (todo sincrónico en una transacción)
   db.withTransactionSync(() => {
@@ -100,11 +125,18 @@ export async function enqueueAgregarFotosOffline(
   obstetricos?: DatosObstetricos  
 ) {
   const client_uuid = String(uuid.v4());
-  const now = new Date().toISOString();
+  const now = getPeruTime();
 
   // (A) Encolar JSON con obstétricos para esta visita (si se proporcionó)
   if (obstetricos) {
-    const now = new Date().toISOString();
+    const now = getPeruTime();
+    
+    // Normalizar fechaUltimoPeriodo: cadena vacía -> null
+    const obstetricosNorm = {
+      ...obstetricos,
+      fechaUltimoPeriodo: obstetricos.fechaUltimoPeriodo || null,
+    };
+    
     db.withTransactionSync(() => {
       db.runSync(
         `INSERT INTO pending_ops (client_uuid, endpoint, method, body)
@@ -117,7 +149,7 @@ export async function enqueueAgregarFotosOffline(
             client_uuid,
             dni,
             nro_visita: nroVisita,
-            datos_obstetricos: obstetricos,
+            datos_obstetricos: obstetricosNorm,
             updated_at: now,
           }),
         ]

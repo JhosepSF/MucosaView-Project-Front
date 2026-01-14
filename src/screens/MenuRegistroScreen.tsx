@@ -1,6 +1,6 @@
 // src/screens/MenuRegistroScreen.tsx
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Alert, TextInput, Modal, Image, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, TextInput, Modal, Image, StyleSheet, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { trySync, debugDumpQueue } from '../libs/sync';
@@ -50,7 +50,15 @@ export default function MenuRegistroScreen() {
   };
 
   return (
-    <View style={commonStyles.container}>
+    <ScrollView 
+      style={{ flex: 1, backgroundColor: COLORS.bg }} 
+      contentContainerStyle={{ 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        padding: 24, 
+        paddingBottom: 40 
+      }}
+    >
       <Image
         source={require('../../assets/Obstetra.png')} 
         style={commonStyles.heroImg}
@@ -128,15 +136,15 @@ export default function MenuRegistroScreen() {
         </View>
       </Modal>
 
-    </View>
+    </ScrollView>
   );
 }
 
 const localStyles = StyleSheet.create({
-  btnGreen: { backgroundColor: COLORS.greenBtn, flexDirection: 'row' },
-  btnBlue: { backgroundColor: COLORS.blueBtn, flexDirection: 'row' },
-  btnCyan: { backgroundColor: COLORS.cyanBtn, flexDirection: 'row' },
-  btnOrange: { backgroundColor: COLORS.orangeBtn, flexDirection: 'row' },
-  btnPink: { backgroundColor: COLORS.pinkBtn, flexDirection: 'row' },
-  icon: { marginLeft: 8, marginRight: 10 },
+  btnGreen: { backgroundColor: COLORS.greenBtn, flexDirection: 'row', alignItems: 'center', paddingLeft: 16 },
+  btnBlue: { backgroundColor: COLORS.blueBtn, flexDirection: 'row', alignItems: 'center', paddingLeft: 16 },
+  btnCyan: { backgroundColor: COLORS.cyanBtn, flexDirection: 'row', alignItems: 'center', paddingLeft: 16 },
+  btnOrange: { backgroundColor: COLORS.orangeBtn, flexDirection: 'row', alignItems: 'center', paddingLeft: 16 },
+  btnPink: { backgroundColor: COLORS.pinkBtn, flexDirection: 'row', alignItems: 'center', paddingLeft: 16 },
+  icon: { marginRight: 10 },
 });
