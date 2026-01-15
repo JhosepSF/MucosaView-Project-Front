@@ -13,7 +13,7 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ title, subtitle }) => {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
 
   const handleLogoPress = () => {
-    navigation.navigate("MenuRegistro");
+    navigation.navigate("Welcome");
   };
 
   return (

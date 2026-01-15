@@ -444,8 +444,8 @@ export default function RegistroNuevoScreen() {
               style: 'cancel'
             },
             {
-              text: 'Ir al Menú',
-              onPress: () => navigation.navigate('MenuRegistro')
+              text: 'Agregar Visita',
+              onPress: () => navigation.navigate('AgregarFoto')
             }
           ]
         );

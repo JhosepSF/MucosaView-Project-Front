@@ -6,6 +6,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import CustomHeader from '../components/CustomHeader';
 import Footer from '../components/Footer';
 
+import WelcomeScreen from '../screens/WelcomeScreen';
 import MenuRegistroScreen from '../screens/MenuRegistroScreen';
 import RegistroNuevoScreen from '../screens/RegistroNuevoScreen';
 import AgregarFotosScreen from '../screens/AgregarFotoScreen';
@@ -19,7 +20,8 @@ function AppNavigator() {
       <View style={styles.appContainer}>
         <CustomHeader title="MucosaView" subtitle="Recoleccion" />
         <View style={styles.content}>
-          <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="MenuRegistro">
+          <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Welcome">
+            <Stack.Screen name="Welcome" component={WelcomeScreen} />
             <Stack.Screen name="MenuRegistro" component={MenuRegistroScreen} />
             <Stack.Screen name="RegistroNuevo" component={RegistroNuevoScreen} />
             <Stack.Screen name="AgregarFotos" component={AgregarFotosScreen} />
