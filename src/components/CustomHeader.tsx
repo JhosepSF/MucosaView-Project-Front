@@ -13,12 +13,7 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ title, subtitle }) => {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
 
   const handleLogoPress = () => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      // Fallback por si estás en la raíz: navega a "Inicio"
-      navigation.navigate("Inicio");
-    }
+    navigation.navigate("MenuRegistro");
   };
 
   return (

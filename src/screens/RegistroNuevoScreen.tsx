@@ -112,7 +112,7 @@ export default function RegistroNuevoScreen() {
     setDp(s => ({ ...s, dni: digits }));
   };
 
-  /** Buscar DNI en BD y RENIEC */
+  /** Buscar DNI en BD local, servidor y RENIEC */
   const buscarDNI = async () => {
     if (!dp.dni || dp.dni.length !== 8) {
       return Alert.alert('DNI inválido', 'Ingresa un DNI de 8 dígitos');
@@ -120,23 +120,66 @@ export default function RegistroNuevoScreen() {
 
     setBuscandoDNI(true);
     try {
-      // 1. Verificar si ya existe en la BD
-      const bdResponse = await fetch(`${BASE_URL}/api/mucosa/registro/${dp.dni}/info`);
+      // 1. Verificar primero en BD local
+      const { db } = await import('../libs/db');
+      const localRecords = db.getAllSync('SELECT dni, payload FROM records WHERE dni = ?', [dp.dni]);
       
-      if (bdResponse.ok) {
-        const bdData = await bdResponse.json();
+      if (localRecords.length > 0) {
+        const firstRecord = localRecords[0] as { dni: string; payload: string };
+        const payload = JSON.parse(firstRecord.payload);
+        const nombre = payload.datos_personales?.nombre || '';
+        const apellido = payload.datos_personales?.apellido || '';
+        
         Alert.alert(
-          '⚠️ Paciente ya registrado',
+          '⚠️ Paciente ya registrado (BD Local)',
           `Este DNI ya está registrado:\n\n` +
-          `Nombre: ${bdData.nombre} ${bdData.apellido}\n` +
-          `Visitas: ${bdData.total_visitas}\n\n` +
+          `Nombre: ${nombre} ${apellido}\n` +
+          `Registros: ${localRecords.length}\n\n` +
           `Usa "Agregar fotos" para registrar otra visita.`,
-          [{ text: 'OK' }]
+          [
+            {
+              text: 'Cancelar',
+              style: 'cancel'
+            },
+            {
+              text: 'Ir al Menú',
+              onPress: () => navigation.navigate('MenuRegistro')
+            }
+          ]
         );
         return;
       }
 
-      // 2. Si no existe, consultar RENIEC
+      // 2. Si no está en local, verificar en el servidor
+      try {
+        const bdResponse = await fetch(`${BASE_URL}/api/mucosa/registro/${dp.dni}/info`);
+        
+        if (bdResponse.ok) {
+          const bdData = await bdResponse.json();
+          Alert.alert(
+            '⚠️ Paciente ya registrado (Servidor)',
+            `Este DNI ya está registrado:\n\n` +
+            `Nombre: ${bdData.nombre} ${bdData.apellido}\n` +
+            `Visitas: ${bdData.total_visitas}\n\n` +
+            `Usa "Agregar fotos" para registrar otra visita.`,
+            [
+              {
+                text: 'Cancelar',
+                style: 'cancel'
+              },
+              {
+                text: 'Ir al Menú',
+                onPress: () => navigation.navigate('MenuRegistro')
+              }
+            ]
+          );
+          return;
+        }
+      } catch (error) {
+        console.error('Error al buscar en servidor:', error);
+      }
+
+      // 3. Si no existe en ninguna BD, consultar RENIEC
       const reniecResponse = await fetch(
         `https://dniruc.apisperu.com/api/v1/dni/${dp.dni}?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6Impob3NlcHNhbmZsb0BnbWFpbC5jb20ifQ.kl1A34r9TM7eoA3Sx7RefcKKcs0T6yfPMD-4WaBzLDg`
       );
@@ -148,7 +191,7 @@ export default function RegistroNuevoScreen() {
           nombre: reniecData.nombres || '',
           apellido: `${reniecData.apellidoPaterno || ''} ${reniecData.apellidoMaterno || ''}`.trim(),
         }));
-        Alert.alert('✅ Datos encontrados', `Nombre: ${reniecData.nombres}\nApellidos: ${reniecData.apellidoPaterno} ${reniecData.apellidoMaterno}`);
+        Alert.alert('✅ Datos encontrados (RENIEC)', `Nombre: ${reniecData.nombres}\nApellidos: ${reniecData.apellidoPaterno} ${reniecData.apellidoMaterno}`);
       } else {
         Alert.alert('DNI no encontrado', 'No se encontraron datos en RENIEC. Ingresa manualmente.');
       }
@@ -356,6 +399,38 @@ export default function RegistroNuevoScreen() {
     }
 
     try {
+      // Verificar si ya existe un registro con este DNI en la BD local
+      const { db } = await import('../libs/db');
+      const existingRecords = db.getAllSync('SELECT dni, payload FROM records WHERE dni = ?', [dp.dni]);
+      
+      if (existingRecords.length > 0) {
+        // Extraer información del primer registro
+        const firstRecord = existingRecords[0] as { dni: string; payload: string };
+        const payload = JSON.parse(firstRecord.payload);
+        const nombre = payload.datos_personales?.nombre || '';
+        const apellido = payload.datos_personales?.apellido || '';
+        
+        Alert.alert(
+          '⚠️ Paciente ya registrado',
+          `Este DNI ya está registrado en el sistema:\n\n` +
+          `DNI: ${dp.dni}\n` +
+          `Nombre: ${nombre} ${apellido}\n` +
+          `Registros: ${existingRecords.length}\n\n` +
+          `Para registrar una nueva visita, usa la opción "Agregar fotos" del menú principal.`,
+          [
+            {
+              text: 'Cancelar',
+              style: 'cancel'
+            },
+            {
+              text: 'Ir al Menú',
+              onPress: () => navigation.navigate('MenuRegistro')
+            }
+          ]
+        );
+        return;
+      }
+
       await saveRegistroNuevoOffline(
         dp,
         { ...do_, semanasEmbarazo: semanasEmbarazoCalc },

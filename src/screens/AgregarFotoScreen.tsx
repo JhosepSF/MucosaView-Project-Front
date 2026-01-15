@@ -69,23 +69,70 @@ export default function AgregarFotosScreen() {
 
     setBuscando(true);
     try {
-      const response = await fetch(`${BASE_URL}/api/mucosa/registro/${dni}/info`);
-      const data = await response.json();
-
-      if (response.ok) {
-        setNombrePaciente(`${data.nombre} ${data.apellido}`);
-        setNroVisita(data.siguiente_visita.toString());
+      // Primero verificar en la BD local
+      const { db } = await import('../libs/db');
+      const localRecords = db.getAllSync('SELECT dni, nro_visita, payload FROM records WHERE dni = ?', [dni]);
+      
+      let pacienteEncontrado = false;
+      
+      if (localRecords.length > 0) {
+        // Paciente existe en BD local
+        const firstRecord = localRecords[0] as { dni: string; nro_visita: number; payload: string };
+        const payload = JSON.parse(firstRecord.payload);
+        const nombre = payload.datos_personales?.nombre || '';
+        const apellido = payload.datos_personales?.apellido || '';
+        const totalVisitas = localRecords.length;
+        const siguienteVisita = totalVisitas + 1;
+        
+        setNombrePaciente(`${nombre} ${apellido}`);
+        setNroVisita(siguienteVisita.toString());
+        pacienteEncontrado = true;
+        
         Alert.alert(
-          '✅ Paciente encontrado',
-          `Nombre: ${data.nombre} ${data.apellido}\nVisitas previas: ${data.total_visitas}\nSiguiente visita: ${data.siguiente_visita}`
+          '✅ Paciente encontrado (BD Local)',
+          `Nombre: ${nombre} ${apellido}\nVisitas previas: ${totalVisitas}\nSiguiente visita: ${siguienteVisita}`
         );
       } else {
-        Alert.alert('Paciente no encontrado', data.detail || 'No existe un paciente con ese DNI');
+        // Si no está en local, buscar en el servidor
+        try {
+          const response = await fetch(`${BASE_URL}/api/mucosa/registro/${dni}/info`);
+          const data = await response.json();
+
+          if (response.ok) {
+            setNombrePaciente(`${data.nombre} ${data.apellido}`);
+            setNroVisita(data.siguiente_visita.toString());
+            pacienteEncontrado = true;
+            Alert.alert(
+              '✅ Paciente encontrado (Servidor)',
+              `Nombre: ${data.nombre} ${data.apellido}\nVisitas previas: ${data.total_visitas}\nSiguiente visita: ${data.siguiente_visita}`
+            );
+          }
+        } catch (error) {
+          console.error('Error al buscar en servidor:', error);
+        }
+      }
+      
+      // Si no se encontró ni en local ni en servidor
+      if (!pacienteEncontrado) {
         setNombrePaciente('');
         setNroVisita('');
+        Alert.alert(
+          '⚠️ Paciente no registrado',
+          `El DNI ${dni} no tiene ningún registro previo en el sistema.\n\nPara agregar fotos, primero debe registrar al paciente con sus datos personales.`,
+          [
+            {
+              text: 'Cancelar',
+              style: 'cancel'
+            },
+            {
+              text: 'Ir a Nuevo Registro',
+              onPress: () => navigation.navigate('RegistroNuevo')
+            }
+          ]
+        );
       }
     } catch (error) {
-      Alert.alert('Error de conexión', 'No se pudo conectar con el servidor');
+      Alert.alert('Error', 'No se pudo verificar el paciente');
       console.error(error);
     } finally {
       setBuscando(false);
