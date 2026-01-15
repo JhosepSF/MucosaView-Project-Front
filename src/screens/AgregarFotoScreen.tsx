@@ -186,12 +186,23 @@ export default function AgregarFotosScreen() {
   };
 
   const adjuntar = async () => {
-    if (!dni) return Alert.alert('Falta DNI', 'Ingresa el DNI.');
+    // Validar DNI
+    if (!dni) return Alert.alert('Falta DNI', 'Ingresa el DNI del paciente.');
     if (dni.length !== 8) return Alert.alert('DNI inválido', 'El DNI debe tener 8 dígitos.');
-    if (!nroVisita) return Alert.alert('Falta Visita', 'Ingresa el número de visita.');
-    if (!fotosConjuntiva.length && !fotosLabio.length && !fotosIndice.length) {
-      return Alert.alert('Sin fotos', 'Selecciona al menos una foto.');
-    }
+    
+    // Validar que se haya buscado el paciente
+    if (!nroVisita) return Alert.alert('Busca Paciente', 'Presiona el botón 🔍 para buscar el paciente por DNI.');
+    if (!nombrePaciente) return Alert.alert('Paciente no encontrado', 'Debes buscar un paciente existente primero.');
+    
+    // Validar datos obstétricos
+    if (!do2.pulsaciones || !do2.pulsaciones.trim()) return Alert.alert('Falta Pulsaciones', 'Ingresa las pulsaciones por minuto.');
+    if (!do2.hemoglobina || !do2.hemoglobina.trim()) return Alert.alert('Falta Hemoglobina', 'Ingresa el nivel de hemoglobina.');
+    if (!do2.oxigeno || !do2.oxigeno.trim()) return Alert.alert('Falta Oxígeno', 'Ingresa el nivel de oxígeno en sangre.');
+    
+    // Validar fotos
+    if (!fotosConjuntiva.length) return Alert.alert('Falta Foto Conjuntiva', 'Agrega al menos una foto de Conjuntiva.');
+    if (!fotosLabio.length) return Alert.alert('Falta Foto Labio', 'Agrega al menos una foto de Labio.');
+    if (!fotosIndice.length) return Alert.alert('Falta Foto Índice', 'Agrega al menos una foto de Índice.');
 
     try {
       const obst = { ...do2, semanasEmbarazo: semanasCalc };

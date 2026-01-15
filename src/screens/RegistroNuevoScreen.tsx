@@ -391,12 +391,33 @@ export default function RegistroNuevoScreen() {
   };
 
   const guardarRegistro = async () => {
-    if (!dp.dni) return Alert.alert('Falta DNI', 'Ingresa el DNI.');
+    // Validar DNI
+    if (!dp.dni) return Alert.alert('Falta DNI', 'Ingresa el DNI del paciente.');
     if (dp.dni.length !== 8) return Alert.alert('DNI inválido', 'El DNI debe tener 8 dígitos.');
+    
+    // Validar datos personales
+    if (!dp.nombre || !dp.nombre.trim()) return Alert.alert('Falta Nombre', 'Ingresa el nombre del paciente.');
+    if (!dp.apellido || !dp.apellido.trim()) return Alert.alert('Falta Apellido', 'Ingresa el apellido del paciente.');
+    if (!dp.edad || dp.edad.trim() === '') return Alert.alert('Falta Edad', 'Ingresa la edad del paciente.');
+    
+    // Validar ubicación
+    if (!dp.region || !dp.region.trim()) return Alert.alert('Falta Región', 'Selecciona la región del paciente.');
+    if (!dp.provincia || !dp.provincia.trim()) return Alert.alert('Falta Provincia', 'Selecciona la provincia del paciente.');
+    if (!dp.distrito || !dp.distrito.trim()) return Alert.alert('Falta Distrito', 'Selecciona el distrito del paciente.');
+    if (!dp.direccion || !dp.direccion.trim()) return Alert.alert('Falta Dirección', 'Ingresa la dirección del paciente.');
+    
+    // Validar datos obstétricos
+    if (!do_.pulsaciones || !do_.pulsaciones.trim()) return Alert.alert('Falta Pulsaciones', 'Ingresa las pulsaciones por minuto.');
+    if (!do_.hemoglobina || !do_.hemoglobina.trim()) return Alert.alert('Falta Hemoglobina', 'Ingresa el nivel de hemoglobina.');
+    if (!do_.oxigeno || !do_.oxigeno.trim()) return Alert.alert('Falta Oxígeno', 'Ingresa el nivel de oxígeno en sangre.');
+    if (!do_.fechaUltimoPeriodo || !do_.fechaUltimoPeriodo.trim()) return Alert.alert('Falta Fecha', 'Selecciona la fecha del último periodo.');
+    
+    // Validar fotos
+    if (!fotosConjuntiva.length) return Alert.alert('Falta Foto Conjuntiva', 'Agrega al menos una foto de Conjuntiva.');
+    if (!fotosLabio.length) return Alert.alert('Falta Foto Labio', 'Agrega al menos una foto de Labio.');
+    if (!fotosIndice.length) return Alert.alert('Falta Foto Índice', 'Agrega al menos una foto de Índice.');
+    
     if (!nroVisita) return Alert.alert('Falta Visita', 'Ingresa el número de visita.');
-    if (!fotosConjuntiva.length && !fotosLabio.length && !fotosIndice.length) {
-      return Alert.alert('Sin fotos', 'Agrega al menos una foto (Conjuntiva, Labio o Índice).');
-    }
 
     try {
       // Verificar si ya existe un registro con este DNI en la BD local
