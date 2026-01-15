@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { saveRegistroNuevoOffline } from '../libs/outbox';
 import { commonStyles, COLORS } from '../styles';
 import { ubigeoData } from '../data/ubigeo';
+import { BASE_URL } from '../libs/sync';
 
 type Foto = { uri: string };
 
@@ -57,6 +58,7 @@ export default function RegistroNuevoScreen() {
   const [nroVisita] = useState('1'); // No editable
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [capturandoUbicacion, setCapturandoUbicacion] = useState(false);
+  const [buscandoDNI, setBuscandoDNI] = useState(false);
   const [dp, setDp] = useState<DatosPersonales>({
     dni: '', nombre: '', apellido: '', edad: '',
     region: '', provincia: '', distrito: '', direccion: '', mapsUrl: '',
@@ -108,6 +110,54 @@ export default function RegistroNuevoScreen() {
   const handleDniChange = (v: string) => {
     const digits = onlyDigits(v).slice(0, 8);
     setDp(s => ({ ...s, dni: digits }));
+  };
+
+  /** Buscar DNI en BD y RENIEC */
+  const buscarDNI = async () => {
+    if (!dp.dni || dp.dni.length !== 8) {
+      return Alert.alert('DNI inválido', 'Ingresa un DNI de 8 dígitos');
+    }
+
+    setBuscandoDNI(true);
+    try {
+      // 1. Verificar si ya existe en la BD
+      const bdResponse = await fetch(`${BASE_URL}/api/mucosa/registro/${dp.dni}/info`);
+      
+      if (bdResponse.ok) {
+        const bdData = await bdResponse.json();
+        Alert.alert(
+          '⚠️ Paciente ya registrado',
+          `Este DNI ya está registrado:\n\n` +
+          `Nombre: ${bdData.nombre} ${bdData.apellido}\n` +
+          `Visitas: ${bdData.total_visitas}\n\n` +
+          `Usa "Agregar fotos" para registrar otra visita.`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // 2. Si no existe, consultar RENIEC
+      const reniecResponse = await fetch(
+        `https://dniruc.apisperu.com/api/v1/dni/${dp.dni}?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6Impob3NlcHNhbmZsb0BnbWFpbC5jb20ifQ.kl1A34r9TM7eoA3Sx7RefcKKcs0T6yfPMD-4WaBzLDg`
+      );
+
+      if (reniecResponse.ok) {
+        const reniecData = await reniecResponse.json();
+        setDp(s => ({
+          ...s,
+          nombre: reniecData.nombres || '',
+          apellido: `${reniecData.apellidoPaterno || ''} ${reniecData.apellidoMaterno || ''}`.trim(),
+        }));
+        Alert.alert('✅ Datos encontrados', `Nombre: ${reniecData.nombres}\nApellidos: ${reniecData.apellidoPaterno} ${reniecData.apellidoMaterno}`);
+      } else {
+        Alert.alert('DNI no encontrado', 'No se encontraron datos en RENIEC. Ingresa manualmente.');
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'No se pudo verificar el DNI. Continúa con el registro manual.');
+    } finally {
+      setBuscandoDNI(false);
+    }
   };
 
   /** onChange Fecha con validación de 40 semanas */
@@ -336,13 +386,33 @@ export default function RegistroNuevoScreen() {
       <Text style={localStyles.h1}>Nuevo registro</Text>
 
       <Text style={localStyles.h2}>Datos Personales</Text>
-      <Input
-        label="DNI"
-        value={dp.dni}
-        onChangeText={handleDniChange}
-        keyboardType="number-pad"
-        maxLength={8} // 8 dígitos
-      />
+      
+      {/* DNI con botón de búsqueda */}
+      <View style={{ marginBottom: 10 }}>
+        <Text style={localStyles.label}>DNI</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <TextInput
+            style={[localStyles.input, { flex: 1 }]}
+            value={dp.dni}
+            onChangeText={handleDniChange}
+            keyboardType="number-pad"
+            maxLength={8}
+            placeholder="Ingresa DNI"
+          />
+          <TouchableOpacity
+            style={[localStyles.btnBuscar, buscandoDNI && { opacity: 0.5 }]}
+            onPress={buscarDNI}
+            disabled={buscandoDNI}
+          >
+            {buscandoDNI ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="search" size={20} color="#fff" />
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <Input label="Nombre" value={dp.nombre} onChangeText={(v: string) => setDp(s => ({ ...s, nombre: v }))} />
       <Input label="Apellido" value={dp.apellido} onChangeText={(v: string) => setDp(s => ({ ...s, apellido: v }))} />
       <Input 
@@ -691,5 +761,16 @@ const localStyles = StyleSheet.create({
   picker: {
     color: COLORS.text,
     height: Platform.OS === 'ios' ? 180 : 50,
+  },
+  btnBuscar: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    padding: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
 });
