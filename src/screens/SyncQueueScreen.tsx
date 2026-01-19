@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Modal } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, Alert, ScrollView } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { debugDumpQueue, trySync } from '../libs/sync';
 import { commonStyles, COLORS } from '../styles';
@@ -20,11 +20,12 @@ export default function SyncQueueScreen() {
   const [items, setItems] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
 
   const load = () => {
     setLoading(true);
     try {
-      const data = debugDumpQueue(200) as QueueItem[]; // devuelve también el array
+      const data = debugDumpQueue(200) as QueueItem[];
       setItems(Array.isArray(data) ? data : []);
     } catch {
       setItems([]);
@@ -39,28 +40,88 @@ export default function SyncQueueScreen() {
   const onSyncNow = async () => {
     setSyncing(true);
     try {
-      await trySync();
+      const result = await trySync();
       load();
+      
+      // Mostrar resumen de sincronización
+      if (result) {
+        const { total, success, errors } = result;
+        if (errors > 0) {
+          Alert.alert(
+            '⚠️ Sincronización completada con errores',
+            `Procesados: ${total}\nÉxitos: ${success}\nErrores: ${errors}\n\nRevisa la cola para ver los elementos pendientes.`,
+            [{ text: 'OK' }]
+          );
+        } else if (success > 0) {
+          Alert.alert('✅ Sincronización exitosa', `Se sincronizaron ${success} elementos correctamente.`, [{ text: 'OK' }]);
+        }
+      }
     } finally {
       setSyncing(false);
     }
   };
 
-  const renderItem = ({ item }: { item: QueueItem }) => (
-    <View style={localStyles.card}>
-      <View style={localStyles.cardHeader}>
-        <Text style={localStyles.itemId}>#{item.id}</Text>
-        <View style={[localStyles.badge, item.kind.startsWith('FILE') ? localStyles.badgeFile : localStyles.badgeJson]}>
-          <Text style={localStyles.badgeText}>{item.kind}</Text>
-        </View>
+  const toggleExpand = (id: number) => {
+    setExpandedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const renderItem = ({ item }: { item: QueueItem }) => {
+    const isExpanded = expandedIds.has(item.id);
+    const bodyText = item.body ? JSON.stringify(item.body, null, 2) : 'Sin datos';
+    
+    return (
+      <View style={localStyles.card}>
+        <TouchableOpacity onPress={() => toggleExpand(item.id)}>
+          <View style={localStyles.cardHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <Text style={localStyles.itemId}>#{item.id}</Text>
+              <Ionicons 
+                name={isExpanded ? 'chevron-up' : 'chevron-down'} 
+                size={20} 
+                color={COLORS.textSecondary} 
+                style={{ marginLeft: 8 }}
+              />
+            </View>
+            <View style={[localStyles.badge, item.kind.startsWith('FILE') ? localStyles.badgeFile : localStyles.badgeJson]}>
+              <Text style={localStyles.badgeText}>{item.kind}</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        <Text style={localStyles.line}><Text style={localStyles.label}>Método:</Text> <Text style={localStyles.value}>{item.method}</Text></Text>
+        <Text style={localStyles.line}><Text style={localStyles.label}>Endpoint:</Text> <Text style={localStyles.value}>{item.endpoint}</Text></Text>
+        {item.filename ? <Text style={localStyles.line}><Text style={localStyles.label}>Archivo:</Text> <Text style={localStyles.value}>{item.filename}</Text></Text> : null}
+        <Text style={localStyles.line}>
+          <Text style={localStyles.label}>Reintentos:</Text> 
+          <Text style={[localStyles.value, item.retries > 5 && { color: COLORS.warn, fontWeight: 'bold' }]}>
+            {item.retries} {item.retries > 10 ? '⚠️' : ''}
+          </Text>
+        </Text>
+        <Text style={localStyles.uuidLine}><Text style={localStyles.label}>UUID:</Text> <Text style={localStyles.uuid}>{item.client_uuid}</Text></Text>
+
+        {/* Body expandible */}
+        {isExpanded && item.body && (
+          <View style={localStyles.bodyContainer}>
+            <View style={localStyles.bodyHeader}>
+              <Text style={localStyles.bodyTitle}>📋 Datos del JSON:</Text>
+            </View>
+            <ScrollView style={localStyles.bodyScrollView} nestedScrollEnabled>
+              <Text style={localStyles.bodyText} selectable>{bodyText}</Text>
+            </ScrollView>
+            <Text style={localStyles.bodyHint}>💡 Toma screenshot de estos datos para guardarlos</Text>
+          </View>
+        )}
       </View>
-      <Text style={localStyles.line}><Text style={localStyles.label}>Método:</Text> <Text style={localStyles.value}>{item.method}</Text></Text>
-      <Text style={localStyles.line}><Text style={localStyles.label}>Endpoint:</Text> <Text style={localStyles.value}>{item.endpoint}</Text></Text>
-      {item.filename ? <Text style={localStyles.line}><Text style={localStyles.label}>Archivo:</Text> <Text style={localStyles.value}>{item.filename}</Text></Text> : null}
-      <Text style={localStyles.line}><Text style={localStyles.label}>Reintentos:</Text> <Text style={localStyles.value}>{item.retries}</Text></Text>
-      <Text style={localStyles.uuidLine}><Text style={localStyles.label}>UUID:</Text> <Text style={localStyles.uuid}>{item.client_uuid}</Text></Text>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={localStyles.container}>
@@ -68,12 +129,19 @@ export default function SyncQueueScreen() {
       <Text style={localStyles.subtitle}>
         {items.length} operación{items.length !== 1 ? 'es' : ''} pendiente{items.length !== 1 ? 's' : ''}
       </Text>
+      
+      <View style={localStyles.infoBox}>
+        <Ionicons name="information-circle" size={20} color={COLORS.info} />
+        <Text style={localStyles.infoText}>
+          La sincronización es MANUAL. Presiona "Sincronizar" cuando estés listo. Toca cada elemento para ver los datos completos.
+        </Text>
+      </View>
 
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
         <TouchableOpacity 
           style={[commonStyles.btn, localStyles.btnSync]} 
           onPress={onSyncNow}
-          disabled={syncing}
+          disabled={syncing || items.length === 0}
         >
           {syncing ? (
             <>
@@ -82,14 +150,13 @@ export default function SyncQueueScreen() {
             </>
           ) : (
             <>
-              <Ionicons name="sync" size={18} color="#fff" style={{ marginRight: 6 }} />
-              <Text style={commonStyles.btnText}>Sincronizar</Text>
+              <Ionicons name="cloud-upload" size={18} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={commonStyles.btnText}>Sincronizar ({items.length})</Text>
             </>
           )}
         </TouchableOpacity>
         <TouchableOpacity style={[commonStyles.btn, localStyles.btnRefresh]} onPress={load}>
-          <Ionicons name="refresh" size={18} color="#fff" style={{ marginRight: 6 }} />
-          <Text style={commonStyles.btnText}>Actualizar</Text>
+          <Ionicons name="refresh" size={18} color="#fff" />
         </TouchableOpacity>
       </View>
 
@@ -121,11 +188,13 @@ export default function SyncQueueScreen() {
   );
 }
 
+
 const localStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.bg,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   title: {
     fontSize: 24,
@@ -136,18 +205,36 @@ const localStyles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: COLORS.textSecondary,
+    marginBottom: 12,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    backgroundColor: '#E3F2FD',
+    padding: 12,
+    borderRadius: 8,
     marginBottom: 16,
+    gap: 10,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.text,
+    lineHeight: 18,
   },
   btnSync: {
     flex: 1,
+    width: 'auto', // Sobrescribir width: '100%' de commonStyles
     backgroundColor: COLORS.blueBtn,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 10,
   },
   btnRefresh: {
-    flex: 1,
+    width: 'auto', // Sobrescribir width: '100%' de commonStyles
     backgroundColor: COLORS.cyanBtn,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -212,6 +299,43 @@ const localStyles = StyleSheet.create({
     fontFamily: 'monospace',
     fontSize: 11,
     color: '#666',
+  },
+  bodyContainer: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  bodyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  bodyTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  bodyScrollView: {
+    maxHeight: 300,
+    backgroundColor: '#fff',
+    borderRadius: 4,
+    padding: 8,
+  },
+  bodyText: {
+    fontFamily: 'monospace',
+    fontSize: 11,
+    color: '#333',
+    lineHeight: 16,
+  },
+  bodyHint: {
+    fontSize: 11,
+    color: COLORS.info,
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   emptyContainer: {
     alignItems: 'center',

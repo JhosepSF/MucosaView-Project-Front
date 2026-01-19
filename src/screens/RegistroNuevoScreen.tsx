@@ -143,7 +143,15 @@ export default function RegistroNuevoScreen() {
             },
             {
               text: 'Ir al Menú',
-              onPress: () => navigation.navigate('MenuRegistro')
+              onPress: () => {
+                navigation.reset({
+                  index: 1,
+                  routes: [
+                    { name: 'Welcome' },
+                    { name: 'MenuRegistro' }
+                  ]
+                });
+              }
             }
           ]
         );
@@ -169,7 +177,15 @@ export default function RegistroNuevoScreen() {
               },
               {
                 text: 'Ir al Menú',
-                onPress: () => navigation.navigate('MenuRegistro')
+                onPress: () => {
+                  navigation.reset({
+                    index: 1,
+                    routes: [
+                      { name: 'Welcome' },
+                      { name: 'MenuRegistro' }
+                    ]
+                  });
+                }
               }
             ]
           );
@@ -466,7 +482,16 @@ export default function RegistroNuevoScreen() {
         [
           { 
             text: 'OK', 
-            onPress: () => navigation.navigate('MenuRegistro')
+            onPress: () => {
+              // Resetear el stack para volver a MenuRegistro limpiamente
+              navigation.reset({
+                index: 1,
+                routes: [
+                  { name: 'Welcome' },
+                  { name: 'MenuRegistro' }
+                ]
+              });
+            }
           }
         ]
       );

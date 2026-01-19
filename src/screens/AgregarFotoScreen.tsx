@@ -222,7 +222,15 @@ export default function AgregarFotosScreen() {
         [
           { 
             text: 'OK', 
-            onPress: () => navigation.navigate('MenuRegistro')
+            onPress: () => {
+              navigation.reset({
+                index: 1,
+                routes: [
+                  { name: 'Welcome' },
+                  { name: 'MenuRegistro' }
+                ]
+              });
+            }
           }
         ]
       );

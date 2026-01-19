@@ -7,9 +7,9 @@ import { db } from './db';
 const DEBUG_SYNC = true;
 const D = (...a: any[]) => DEBUG_SYNC && console.log(...a);
 
-export const BASE_URL = 'http://158.69.209.130'; // <-- tu LAN IP
+export const BASE_URL = 'http://192.168.100.151:8000'; // <-- tu LAN IP
 const TOKEN: string | null = null;
-const MAX_RETRIES = 8;
+const MAX_RETRIES = 15;
 
 type PendingOp = {
   id: number;
@@ -177,20 +177,25 @@ export async function trySync() {
 
   await preEnrichPendingRecords();
 
-  // Lote: JSON primero, FILEs después
+  // Lote: JSON primero (PRIORIDAD ALTA), FILEs después
   const all = db.getAllSync(
     `SELECT id,client_uuid,endpoint,method,body,form_field,file_id,retries
      FROM pending_ops
-     ORDER BY id ASC
+     ORDER BY 
+       CASE WHEN file_id IS NULL THEN 0 ELSE 1 END,  -- JSON primero (0), FILES después (1)
+       id ASC
      LIMIT 50`
   ) as PendingOp[];
 
   const jsonOps = all.filter(o => !o.file_id);
   const fileOps = all.filter(o => !!o.file_id);
 
-  D('[SYNC] Batch pending_ops =', all.length);
+  D('[SYNC] Batch pending_ops = Total:', all.length, '| JSON:', jsonOps.length, '| FILES:', fileOps.length);
 
-  // ========== 1) JSON ==========
+  let successCount = 0;
+  let errorCount = 0;
+
+  // ========== 1) JSON (PRIORIDAD ALTA) ==========
   for (const op of jsonOps) {
     try {
       let bodyObj: any = null;
@@ -325,6 +330,7 @@ export async function trySync() {
             db.runSync(`DELETE FROM pending_ops WHERE id=?`, [op.id]);
             db.runSync(`UPDATE files SET sync_status='synced' WHERE id=?`, [op.file_id]);
           });
+          successCount++;
         } catch (uploadErr: any) {
           // Si el error es "unique set" (foto duplicada), considerarla como ya sincronizada
           const errMsg = uploadErr?.message || '';
@@ -334,27 +340,46 @@ export async function trySync() {
               db.runSync(`DELETE FROM pending_ops WHERE id=?`, [op.id]);
               db.runSync(`UPDATE files SET sync_status='synced' WHERE id=?`, [op.file_id]);
             });
+            successCount++;
           } else {
+            errorCount++;
             throw uploadErr;
           }
         }
       } catch (e: any) {
+        errorCount++;
         D('[SYNC][FILE][ERR]', e?.message || e);
         db.withTransactionSync(() => bumpRetryOrDrop(op.id, op.retries));
+        // CONTINUAR con el siguiente archivo en lugar de detener
       }
     } catch (e: any) {
+      errorCount++;
       D('[SYNC][LOOP][ERR]', e?.message || e);
       db.withTransactionSync(() => bumpRetryOrDrop(op.id, op.retries));
+      // CONTINUAR con el siguiente elemento
     }
   }
+  
+  D(`[SYNC] COMPLETED - Success: ${successCount}, Errors: ${errorCount}, Total: ${all.length}`);
+  
+  // Retornar estadísticas
+  return {
+    total: all.length,
+    success: successCount,
+    errors: errorCount,
+  };
 }
 
+// SINCRONIZACIÓN AUTOMÁTICA DESACTIVADA
+// Si quieres reactivarla, descomenta la función startAutoSync() y llámala desde App.tsx
+/*
 export function startAutoSync() {
   const unsub = NetInfo.addEventListener(state => {
     if (state.isConnected && state.isInternetReachable) trySync();
   });
   return unsub;
 }
+*/
 
 // Para depurar desde UI (lo puedes mostrar en tu ColaScreen)
 export function debugDumpQueue(limit = 100) {
