@@ -1,6 +1,7 @@
 import uuid from 'react-native-uuid';
 import { db } from './db';
 import { moveIntoAppDir, buildPhotoName, buildPhotoDst } from './fs';
+import { backupToJSON } from './backup';
 
 // Función para obtener hora local de Perú (UTC-5)
 function getPeruTime(): string {
@@ -113,6 +114,27 @@ export async function saveRegistroNuevoOffline(
   await pushFotos(fotosLab, 'Labio');
   await pushFotos(fotosInd, 'Indice');
 
+  // Backup automático en JSON (para seguridad adicional)
+  try {
+    await backupToJSON(
+      {
+        client_uuid,
+        timestamp: now,
+        datos_personales: dp,
+        datos_obstetricos: obstetricosNorm,
+        nro_visita: nroVisita,
+        fotos_count: {
+          conjuntiva: fotosConj.length,
+          labio: fotosLab.length,
+          indice: fotosInd.length
+        }
+      },
+      `registro_${dp.dni}_visita${nroVisita}`
+    );
+  } catch (error) {
+    console.warn('No se pudo crear backup JSON (no afecta el guardado):', error);
+  }
+
   return client_uuid;
 }
 
@@ -196,6 +218,27 @@ export async function enqueueAgregarFotosOffline(
   await pushFotos(fotosConj, 'Conjuntiva');
   await pushFotos(fotosLab, 'Labio');
   await pushFotos(fotosInd, 'Indice');
+
+  // Backup automático en JSON (para seguridad adicional)
+  try {
+    await backupToJSON(
+      {
+        client_uuid,
+        timestamp: now,
+        dni,
+        nro_visita: nroVisita,
+        datos_obstetricos: obstetricos || null,
+        fotos_count: {
+          conjuntiva: fotosConj.length,
+          labio: fotosLab.length,
+          indice: fotosInd.length
+        }
+      },
+      `agregar_fotos_${dni}_visita${nroVisita}`
+    );
+  } catch (error) {
+    console.warn('No se pudo crear backup JSON (no afecta el guardado):', error);
+  }
 
   return client_uuid;
 }

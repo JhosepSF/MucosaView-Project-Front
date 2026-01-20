@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, Alert, ScrollView, Share } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { debugDumpQueue, trySync } from '../libs/sync';
+import { exportDatabase, exportAllDataAsJSON, cleanOldBackups } from '../libs/backup';
 import { commonStyles, COLORS } from '../styles';
 
 type QueueItem = {
@@ -58,6 +59,66 @@ export default function SyncQueueScreen() {
       }
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const onExportDatabase = async () => {
+    try {
+      const filepath = await exportDatabase();
+      Alert.alert(
+        '✅ Base de datos exportada',
+        `Archivo guardado en:\n${filepath}\n\n¿Deseas compartirlo?`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Compartir',
+            onPress: async () => {
+              try {
+                await Share.share({ 
+                  url: filepath,
+                  title: 'Backup MucosaView Database'
+                });
+              } catch (error) {
+                console.error('Error al compartir:', error);
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo exportar la base de datos: ' + String(error));
+    }
+  };
+
+  const onExportJSON = async () => {
+    try {
+      const filepath = await exportAllDataAsJSON();
+      
+      // Limpiar backups antiguos
+      await cleanOldBackups(10);
+      
+      Alert.alert(
+        '✅ Datos exportados a JSON',
+        `Archivo guardado en:\n${filepath}\n\n¿Deseas compartirlo?`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Compartir',
+            onPress: async () => {
+              try {
+                await Share.share({ 
+                  url: filepath,
+                  title: 'Backup MucosaView JSON'
+                });
+              } catch (error) {
+                console.error('Error al compartir:', error);
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo exportar los datos: ' + String(error));
     }
   };
 
@@ -160,6 +221,24 @@ export default function SyncQueueScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Botones de exportación/backup */}
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+        <TouchableOpacity 
+          style={[commonStyles.btn, localStyles.btnExport]} 
+          onPress={onExportJSON}
+        >
+          <Ionicons name="document-text" size={16} color="#fff" style={{ marginRight: 4 }} />
+          <Text style={[commonStyles.btnText, { fontSize: 12 }]}>Export JSON</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[commonStyles.btn, localStyles.btnExport]} 
+          onPress={onExportDatabase}
+        >
+          <Ionicons name="save" size={16} color="#fff" style={{ marginRight: 4 }} />
+          <Text style={[commonStyles.btnText, { fontSize: 12 }]}>Export DB</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Modal de carga durante sincronización */}
       <Modal transparent visible={syncing} animationType="fade">
         <View style={localStyles.modalOverlay}>
@@ -235,6 +314,15 @@ const localStyles = StyleSheet.create({
     backgroundColor: COLORS.cyanBtn,
     paddingHorizontal: 16,
     paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnExport: {
+    flex: 1,
+    width: 'auto',
+    backgroundColor: COLORS.orangeBtn,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

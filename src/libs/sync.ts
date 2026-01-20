@@ -157,6 +157,36 @@ async function uploadFile(
   }
 }
 
+/**
+ * Verifica que un registro realmente exista en el servidor antes de marcarlo como sincronizado
+ */
+async function verifyRecordOnServer(dni: string, clientUuid: string): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `${BASE_URL}/api/mucosa/registro/${encodeURIComponent(dni)}/info`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}),
+        },
+      }
+    );
+    
+    if (response.ok) {
+      const data = await response.json();
+      D('[SYNC][VERIFY] Registro verificado en servidor:', { dni, exists: true, data });
+      return true;
+    }
+    
+    D('[SYNC][VERIFY] Registro NO encontrado en servidor:', { dni, status: response.status });
+    return false;
+  } catch (error) {
+    D('[SYNC][VERIFY] Error al verificar registro:', error);
+    return false; // En caso de error de red, asumir que no está sincronizado
+  }
+}
+
 // --- helpers de retries ---
 function bumpRetryOrDrop(opId: number, retries?: number) {
   const r = retries ?? 0;
@@ -243,12 +273,36 @@ export async function trySync() {
 
       // Para /visita, si 404 “No Patient …”, lo dejamos para retry (no lo borramos).
       if (res.ok || alreadyExists) {
-        db.withTransactionSync(() => {
-          db.runSync(`DELETE FROM pending_ops WHERE id=?`, [op.id]);
-          if (isCreate) {
-            db.runSync(`UPDATE records SET sync_status='synced' WHERE client_uuid=?`, [op.client_uuid]);
+        // VERIFICACIÓN DE INTEGRIDAD: confirmar que realmente está en el servidor
+        let shouldMarkSynced = true;
+        
+        if (isCreate && bodyObj?.dni) {
+          D('[SYNC][VERIFY] Verificando integridad del registro en servidor...');
+          const verified = await verifyRecordOnServer(bodyObj.dni, op.client_uuid);
+          
+          if (!verified && !alreadyExists) {
+            // El servidor respondió OK pero no encontramos el registro
+            D('[SYNC][VERIFY] ⚠️ ADVERTENCIA: servidor respondió OK pero registro no verificado');
+            shouldMarkSynced = false;
+            errorCount++;
+            
+            // Incrementar reintentos en lugar de marcar como sincronizado
+            bumpRetryOrDrop(op.id, op.retries);
+            continue;
+          } else if (verified || alreadyExists) {
+            D('[SYNC][VERIFY] ✅ Registro verificado correctamente en servidor');
           }
-        });
+        }
+        
+        if (shouldMarkSynced) {
+          db.withTransactionSync(() => {
+            db.runSync(`DELETE FROM pending_ops WHERE id=?`, [op.id]);
+            if (isCreate) {
+              db.runSync(`UPDATE records SET sync_status='synced' WHERE client_uuid=?`, [op.client_uuid]);
+            }
+          });
+          successCount++;
+        }
       } else {        // Mostrar alerta si es una visita que falló
         if (isVisita) {
           const dni = bodyObj?.dni || 'desconocido';

@@ -1,7 +1,7 @@
 # MucosaView - Frontend (Aplicación Móvil)
 
 ## 📱 Descripción
-Aplicación móvil desarrollada en React Native con Expo para la recolección de datos clínicos y fotografías de pacientes gestantes en zonas rurales. Permite captura offline con sincronización automática al backend.
+Aplicación móvil desarrollada en React Native con Expo para la recolección de datos clínicos y fotografías de pacientes gestantes en zonas rurales. Permite captura offline con sincronización manual controlada, sistema de backup automático y verificación de integridad de datos.
 
 ## 🚀 Repositorios del Proyecto
 - **Frontend (App Móvil)**: https://github.com/JhosepSF/MucosaView-Project-Front
@@ -93,14 +93,16 @@ Front/
 │   ├── navigation/        # Navegación
 │   │   └── AppNavigator.tsx
 │   ├── screens/          # Pantallas principales
+│   │   ├── WelcomeScreen.tsx           # Pantalla de bienvenida
 │   │   ├── MenuRegistroScreen.tsx      # Menú principal
 │   │   ├── RegistroNuevoScreen.tsx     # Nueva paciente
 │   │   ├── AgregarFotoScreen.tsx       # Visita 2+
-│   │   └── SyncQueueScreen.tsx         # Cola de sincronización
+│   │   └── SyncQueueScreen.tsx         # Cola de sincronización + Backup
 │   ├── libs/             # Lógica de negocio
 │   │   ├── db.ts         # SQLite local
-│   │   ├── outbox.ts     # Patrón Outbox
-│   │   ├── sync.ts       # Sincronización y Clientes API
+│   │   ├── outbox.ts     # Patrón Outbox + Backup automático
+│   │   ├── sync.ts       # Sincronización + Verificación de integridad
+│   │   ├── backup.ts     # Sistema de backup y exportación
 │   │   ├── fs.ts         # Sistema de archivos
 │   │   ├── maintenance.ts # Mantenimiento
 │   │   └── log.ts        # Logging
@@ -113,6 +115,12 @@ Front/
 ```
 
 ## 🎯 Funcionalidades Principales
+
+### 🏠 Pantalla de Bienvenida
+- **Explicación del propósito**: Presenta la app al usuario
+- **Navegación directa**: Acceso rápido a registro y sincronización
+- **Botón futuro**: "Diagnóstico Inteligente" (IA - próximamente)
+- **Prevención de retroceso**: Confirmación para salir de la app
 
 ### 📋 Registro de Pacientes (Visita 1)
 - **Datos Personales**: DNI, nombre, apellido, edad
@@ -129,12 +137,26 @@ Front/
 - Actualización de datos obstétricos por visita
 - Numeración automática de visitas
 
-### 🔄 Sincronización Offline
-- **Patrón Outbox**: Cola de operaciones pendientes
-- **Auto-retry**: Reintentos automáticos con backoff exponencial
-- **Orden garantizado**: JSON primero, fotos después
+### 🔄 Sincronización Offline-First (Manual)
+- **Control Total**: Sincronización 100% manual desde SyncQueueScreen
+- **Patrón Outbox**: Cola de operaciones pendientes con reintentos
+- **Prioridad Garantizada**: JSON (paciente/visita) ANTES que fotos
+- **Continuar en error**: Si falla una operación, continúa con las siguientes
+- **Verificación de integridad**: Confirma que datos llegaron al servidor
+- **Estadísticas detalladas**: Muestra total/éxitos/errores después de sync
+- **Vista expandible**: Ver JSON completo de cada operación (tap para expandir)
 - **Idempotencia**: Prevención de duplicados con UUID
-- **Detección de red**: Sincronización automática al conectarse
+
+### 💾 Sistema de Backup y Protección de Datos
+- **Backup automático JSON**: Al guardar cada registro se crea backup local
+- **Export completo DB**: Exporta base de datos SQLite completa (.db)
+- **Export datos JSON**: Exporta todas las tablas en formato JSON legible
+- **Compartir backups**: Share API para enviar vía WhatsApp/email
+- **Limpieza automática**: Mantiene solo los últimos 10 backups
+- **Ubicación**: `FileSystem.documentDirectory/backups/`
+- **6 Niveles de protección**: SQLite + JSON + Cola + FileSystem + Export + Verificación
+
+Ver [BACKUP_SYSTEM.md](BACKUP_SYSTEM.md) para documentación completa del sistema de backup.
 
 ### 🗄️ Almacenamiento Local
 - **SQLite**: Base de datos local con expo-sqlite
@@ -142,8 +164,12 @@ Front/
 - **Fotos**: FileSystem persistente en directorio de la app
 
 ### 🛠️ Herramientas de Depuración
-- Ver cola de sincronización en tiempo real
-- Forzar sincronización manual
+- Ver cola de sincronización en tiempo real con detalles completos
+- Vista expandible de JSON para cada operación (tap en tarjeta)
+- Forzar sincronización manual con estadísticas detalladas
+- **Export Database**: Botón para exportar base de datos completa
+- **Export JSON**: Botón para exportar todos los datos en JSON
+- Compartir backups vía Share API (WhatsApp, email, etc.)
 - Vaciar cola de operaciones
 - Borrar registros pendientes por DNI
 - Reiniciar base de datos
@@ -186,32 +212,57 @@ Usuario → Formulario → SQLite local
            Fotos → FileSystem
                     ↓
            Operaciones → pending_ops
+                    ↓
+           Backup automático → JSON local
 ```
 
-### 2. Sincronización (Online)
+### 2. Sincronización Manual (Online)
 ```
+Usuario presiona "Sincronizar"
+    ↓
 Detección de red
     ↓
 Geocoding de coordenadas (opcional)
     ↓
-POST JSON /api/mucosa/registro
+POST JSON /api/mucosa/registro (PRIORIDAD 0)
     ↓
-POST Fotos /api/mucosa/registro/{dni}/fotos
+Verificación de integridad (GET para confirmar)
     ↓
-Actualización de estados (synced)
+POST Fotos /api/mucosa/registro/{dni}/fotos (PRIORIDAD 1)
+    ↓
+Actualización de estados (synced) solo si verificado
+    ↓
+Mostrar estadísticas (total/éxitos/errores)
     ↓
 Limpieza de cola
 ```
 
-### 3. Reintentos
+### 3. Reintentos (Resiliente)
 ```
 Error en request
     ↓
 Incrementar contador de reintentos
     ↓
-¿Reintentos < 8?
+Continuar con siguiente operación (NO detener cola)
+    ↓
+¿Reintentos < 15?
     ↓ Sí          ↓ No
 Reintentar    Eliminar operación
+```
+
+### 4. Backup y Recuperación
+```
+Guardar registro
+    ↓
+Crear backup JSON automático
+    ↓
+Guardar en /backups/registro_{DNI}_visita{N}_{timestamp}.json
+    ↓
+Limpiar backups antiguos (mantener 10)
+    ↓
+Usuario puede exportar DB completa o JSON completo
+    ↓
+Compartir vía WhatsApp/email si es necesario
 ```
 
 ## 🎨 Formato de Imágenes
@@ -277,46 +328,91 @@ POST /api/mucosa/registro/{dni}/visita
 
 ### Cambiar URL del Backend
 ```typescript
-// src/libs/sync.ts (línea 12)
-const BASE_URL = 'http://192.168.100.151:8000';
+// src/libs/sync.ts (línea 10)
+export const BASE_URL = 'http://192.168.100.151:8000';
 
-// src/services/api.ts (línea 4)
-baseURL: 'http://192.168.100.151:8000/api',
+// Para desarrollo local:
+export const BASE_URL = 'http://localhost:8000';  // Solo en emulador Android
+export const BASE_URL = 'http://10.0.2.2:8000';  // Alternativa Android
+export const BASE_URL = 'http://192.168.1.100:8000';  // Dispositivo físico (usa tu IP)
 ```
 
 ### Ajustar Reintentos
 ```typescript
-// src/libs/sync.ts (línea 14)
-const MAX_RETRIES = 8; // Máximo de reintentos
+// src/libs/sync.ts (línea 12)
+const MAX_RETRIES = 15; // Máximo de reintentos (aumentado para mayor resiliencia)
 ```
 
-### Timeout de Red
+### Configurar Cantidad de Backups
 ```typescript
-// src/services/api.ts
-api.defaults.timeout = 60000; // 60 segundos
+// src/screens/SyncQueueScreen.tsx (función onExportJSON)
+await cleanOldBackups(10); // Mantener últimos 10 backups (ajustable)
+```
+
+### Habilitar/Deshabilitar Backup Automático
+```typescript
+// src/libs/outbox.ts (comentar/descomentar estas líneas)
+// await backupToJSON(...); // Comentar para deshabilitar backup automático
 ```
 
 ## 🐛 Solución de Problemas
 
 ### Error: "Couldn't connect to server"
-1. Verifica que el backend esté corriendo
-2. Comprueba la IP en `sync.ts` y `api.ts`
-3. Asegúrate de estar en la misma red
+1. Verifica que el backend esté corriendo (`python manage.py runserver`)
+2. Comprueba la IP en `sync.ts` (línea 10)
+3. Asegúrate de estar en la misma red WiFi
+4. Para dispositivo físico: usa la IP local de tu PC (no localhost)
+5. Obtén tu IP: `ipconfig` (Windows) o `ifconfig` (Mac/Linux)
 
 ### Fotos no se sincronizan
-1. Verifica permisos de cámara y almacenamiento
-2. Revisa la cola: Menú → "Ver cola de Sync"
-3. Fuerza sincronización manual
-4. Verifica logs del backend
+1. Verifica permisos de cámara y almacenamiento en el dispositivo
+2. Revisa la cola: Pantalla "Cola de sincronización"
+3. Toca cada item para ver el JSON y verificar datos
+4. Presiona "Sincronizar" manualmente
+5. Verifica estadísticas: debe mostrar éxitos y errores
+6. Si hay errores, revisa logs del backend
+
+### Datos perdidos después de sincronización
+✅ **Ya no debería pasar** - Sistema mejorado:
+1. Los datos SIEMPRE se guardan en SQLite local (persistente)
+2. Backup automático JSON se crea al guardar
+3. Verificación de integridad confirma que llegó al servidor
+4. Si falla verificación, reintenta automáticamente
+5. Puedes exportar DB o JSON completo en cualquier momento
+6. Los backups están en `/backups/` del dispositivo
+
+### Sincronización falló pero no sé qué datos se perdieron
+1. Ve a "Cola de sincronización"
+2. Presiona "Export JSON" para guardar todos los datos
+3. Comparte el archivo JSON vía WhatsApp/email
+4. Toca cada operación pendiente para ver el JSON completo
+5. Toma screenshots de los datos importantes
+6. Los datos están seguros en SQLite local
 
 ### Base de datos corrupta
-1. Usa "Reiniciar DB" en herramientas de depuración
-2. O "Borrar TODO local" para reset completo
+1. Primero: **Export DB** para guardar backup
+2. Usa "Reiniciar DB" en herramientas de depuración
+3. O "Borrar TODO local" para reset completo
+4. Reinstala la app si el problema persiste
 
 ### GPS no funciona
 1. Activa ubicación en el dispositivo
 2. Concede permisos a la app
-3. Prueba en exterior (mejor señal)
+3. Prueba en exterior (mejor señal GPS)
+4. El GPS NO es obligatorio (puedes continuar sin él)
+
+### Quiero recuperar datos de un backup
+1. Los backups JSON están en: `FileSystem.documentDirectory/backups/`
+2. Usa "Export JSON" para obtener archivo completo
+3. Compártelo vía WhatsApp/email
+4. Abre el JSON en cualquier editor de texto
+5. Todos los datos están ahí en formato legible
+
+### Stack de navegación confuso (pantallas duplicadas)
+✅ **Ya solucionado** - Implementado `navigation.reset()`:
+- Después de guardar un registro, el stack se resetea correctamente
+- Al presionar "atrás" desde MenuRegistro, vuelve a WelcomeScreen
+- No se acumulan pantallas en el historial
 
 ## 📊 Catálogo UBIGEO
 
@@ -356,9 +452,13 @@ npm test
 
 ## 🔐 Seguridad
 - ✅ Almacenamiento local encriptado (SQLite)
+- ✅ Backup automático JSON para recuperación
+- ✅ Verificación de integridad post-sincronización
 - ✅ Comunicación HTTPS (producción)
 - ✅ Validación de entrada en cliente y servidor
 - ✅ UUIDs para prevenir duplicados
+- ✅ 6 niveles de protección de datos
+- ✅ Export de datos para respaldo externo
 
 ## 🚀 Despliegue
 
@@ -387,7 +487,65 @@ Este proyecto es parte de un trabajo académico.
 Para más información:
 - **Backend README**: [API Django](https://github.com/JhosepSF/MucosaView-Project-Back)
 - **Formato de Imágenes**: Ver [FORMATO_IMAGENES.md](FORMATO_IMAGENES.md)
+- **Sistema de Backup**: Ver [BACKUP_SYSTEM.md](BACKUP_SYSTEM.md)
 - **Issues**: Reportar en GitHub Issues
 
 ## 🔄 Versiones
 - **v1.0.0** - Versión inicial con funcionalidad completa offline-first
+- **v1.1.0** - Sistema de backup automático y exportación
+- **v1.2.0** - Verificación de integridad post-sincronización
+- **v1.3.0** - Sincronización manual con control total
+- **v1.4.0** - Pantalla de bienvenida y mejoras de navegación
+
+---
+
+## 🎯 Características Destacadas v1.4.0
+
+### ✨ Nuevas Funcionalidades
+1. **Pantalla de Bienvenida**: Explica el propósito de la app con navegación intuitiva
+2. **Sincronización 100% Manual**: Control total sobre cuándo sincronizar
+3. **Backup Automático**: Crea JSON de cada registro guardado
+4. **Export DB/JSON**: Botones para exportar base de datos completa
+5. **Verificación de Integridad**: Confirma que datos llegaron al servidor
+6. **Vista Expandible**: Tap en operación para ver JSON completo
+7. **Estadísticas Detalladas**: Muestra total/éxitos/errores después de sync
+8. **Navegación Mejorada**: Stack limpio con `navigation.reset()`
+9. **Compartir Backups**: Share API para enviar vía WhatsApp/email
+10. **6 Niveles de Protección**: SQLite + JSON + Cola + FileSystem + Export + Verificación
+
+### 🛡️ Protección de Datos Mejorada
+```
+Nivel 1: SQLite local (persistente)
+Nivel 2: Backup JSON automático (/backups/)
+Nivel 3: Cola de sincronización (pending_ops)
+Nivel 4: Fotos en FileSystem (permanente)
+Nivel 5: Export manual DB/JSON (compartible)
+Nivel 6: Verificación de integridad (server check)
+```
+
+### 📱 Flujo de Usuario Optimizado
+```
+WelcomeScreen
+    ↓
+MenuRegistroScreen
+    ↓ Primera Visita           ↓ Visita Adicional
+RegistroNuevoScreen        AgregarFotosScreen
+    ↓                              ↓
+Guardar + Backup JSON       Guardar + Backup JSON
+    ↓                              ↓
+MenuRegistroScreen (stack limpio)
+    ↓
+SyncQueueScreen
+    ↓
+Ver datos → Export → Compartir → Sincronizar
+```
+
+### 🎨 Mejoras de UI/UX
+- Botones más compactos (paddingVertical reducido)
+- Iconos descriptivos (cloud-upload, document-text, save)
+- Badges visuales: JSON (azul), FILE (naranja), Export (naranja)
+- Modal de "Sincronizando..." con indicador de progreso
+- Alertas informativas con emojis (✅, ⚠️, ❌)
+- Hint para tomar screenshots: "💡 Toma screenshot de estos datos"
+
+---
