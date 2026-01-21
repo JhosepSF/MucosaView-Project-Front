@@ -244,4 +244,4 @@ Cada export JSON incluye estadísticas:
 ---
 
 **Fecha de implementación:** 20 de enero de 2026
-**Versión:** 1.0
+**Versión:** 1.4.0
