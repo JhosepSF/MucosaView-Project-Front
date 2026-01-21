@@ -1,9 +1,9 @@
 # MucosaView - Frontend (Aplicación Móvil)
 
-**Versión:** 1.4.1
+**Versión:** 1.4.2
 
 ## 📱 Descripción
-Aplicación móvil desarrollada en React Native con Expo para la recolección de datos clínicos y fotografías de pacientes gestantes en zonas rurales. Permite captura offline con sincronización manual controlada, sistema de backup automático y verificación de integridad de datos. Incluye permisos completos de almacenamiento para exportación de datos.
+Aplicación móvil desarrollada en React Native con Expo para la recolección de datos clínicos y fotografías de pacientes gestantes en zonas rurales. Permite captura offline con sincronización manual controlada, sistema de backup automático y verificación de integridad de datos. Exportación funcional de base de datos a carpeta Downloads usando MediaLibrary.
 
 ## 🚀 Repositorios del Proyecto
 - **Frontend (App Móvil)**: https://github.com/JhosepSF/MucosaView-Project-Front
@@ -192,7 +192,8 @@ Ver [BACKUP_SYSTEM.md](BACKUP_SYSTEM.md) para documentación completa del sistem
 
 ### Almacenamiento y Datos
 - **expo-sqlite**: Base de datos local (16.0.10)
-- **expo-file-system**: Sistema de archivos (19.0.16)
+- **expo-file-system**: Sistema de archivos (19.0.21)
+- **expo-media-library**: Exportación a Downloads (17.0.5)
 - **@tanstack/react-query**: Cache y gestión de estado
 
 ### Captura y Ubicación
@@ -388,19 +389,18 @@ await cleanOldBackups(10); // Mantener últimos 10 backups (ajustable)
 6. Los backups están en `/backups/` del dispositivo
 
 ### ⚠️ Error: "No se pueden exportar archivos" o archivos con 0KB
-✅ **Solucionado en v1.4.1**:
-1. Asegúrate de tener la versión 1.4.1 instalada
-2. Al presionar "Export DB" o "Export JSON", la app pedirá permisos
-3. Concede permiso de "Archivos y multimedia"
-4. Vuelve a intentar exportar
-5. El archivo se guardará en Downloads/
+✅ **Solucionado en v1.4.2**:
+1. Asegúrate de tener la versión 1.4.2 instalada
+2. Al presionar "Export DB", MediaLibrary pedirá permisos automáticamente
+3. Concede el permiso cuando aparezca el diálogo
+4. El archivo .db se guardará directamente en Downloads
+5. Abre el explorador de archivos → Downloads para verificar
 
-**Alternativa manual con ADB:**
-```bash
-# Conceder permisos manualmente
-adb shell pm grant com.tuorg.mucosaviewapp android.permission.WRITE_EXTERNAL_STORAGE
-adb shell pm grant com.tuorg.mucosaviewapp android.permission.READ_EXTERNAL_STORAGE
-```
+**¿Siguen sin aparecer los archivos?**
+1. Verifica que tienes v1.4.2 (ve a Ajustes → Apps → MucosaView)
+2. Revisa Downloads con el explorador de archivos del teléfono
+3. Busca archivos que empiecen con `mucosaview_backup_`
+4. Si no aparecen, verifica permisos: Ajustes → Apps → MucosaView → Permisos → Fotos y videos (debe estar permitido)
 
 ### Sincronización falló pero no sé qué datos se perdieron
 1. Ve a "Cola de sincronización"
@@ -529,18 +529,26 @@ Para más información:
 
 ## 🔄 Versiones
 
-### v1.4.1 (Actual) - 21 de enero 2026
-**Mejoras de Permisos:**
-- ✅ Agregados permisos de almacenamiento externo
-- ✅ Soporte para Android 13+ (READ_MEDIA_IMAGES/VIDEO)
-- ✅ Exportación de DB y JSON ahora funcional en todos los dispositivos
-- ✅ Los backups se pueden guardar directamente en Downloads
-- ✅ Compartir backups vía WhatsApp/email completamente operativo
+### v1.4.2 (Actual) - 21 de enero 2026
+**Exportación Funcional a Downloads:**
+- ✅ Implementado MediaLibrary para guardar archivos en Downloads
+- ✅ Solicitud automática de permisos al exportar
+- ✅ Archivos .db ahora aparecen en carpeta Downloads del dispositivo
+- ✅ Compatible con Android 7+ hasta Android 14+
+- ✅ Exportación de DB y JSON 100% funcional
+- ✅ Los archivos exportados son inmediatamente accesibles
 
-**Solución de problemas:**
-- Se resolvió el error de permisos al exportar base de datos
-- La app ahora solicita automáticamente permisos de almacenamiento
-- Los archivos exportados son accesibles desde el explorador de archivos
+**Solución definitiva:**
+- Ya no se guardan en directorio privado de la app
+- MediaLibrary maneja permisos automáticamente
+- Los archivos son visibles en el explorador de archivos
+- Se puede compartir directamente desde Downloads
+
+### v1.4.1 - 21 de enero 2026
+**Mejoras de Permisos:**
+- Agregados permisos de almacenamiento externo
+- Soporte para Android 13+ (READ_MEDIA_IMAGES/VIDEO)
+- Preparación para exportación funcional
 
 ### v1.4.0 - 20 de enero 2026
 - Pantalla de bienvenida
@@ -564,16 +572,16 @@ Para más información:
 
 ---
 
-## 🎯 Características Destacadas v1.4.1
+## 🎯 Características Destacadas v1.4.2
 
-### 🆕 Novedades v1.4.1
-1. **Permisos de Almacenamiento Completos**: READ/WRITE_EXTERNAL_STORAGE
-2. **Soporte Android 13+**: READ_MEDIA_IMAGES y READ_MEDIA_VIDEO
-3. **Export Funcional**: DB y JSON ahora se guardan correctamente en Downloads
-4. **Solicitud Automática**: La app pide permisos al intentar exportar
-5. **Compartir sin Restricciones**: WhatsApp, email, Drive, etc.
+### 🆕 Novedades v1.4.2
+1. **MediaLibrary Integration**: Guardar archivos directamente en Downloads
+2. **Exportación 100% Funcional**: Los archivos .db aparecen en Downloads
+3. **Permisos Automáticos**: MediaLibrary solicita permisos sin configuración manual
+4. **Acceso Inmediato**: Archivos visibles en explorador de archivos
+5. **Compatibilidad Total**: Android 7+ hasta Android 14+
 
-### ✨ Funcionalidades Principales (v1.4.0 + v1.4.1)
+### ✨ Funcionalidades Principales (v1.4.0 a v1.4.2)
 1. **Pantalla de Bienvenida**: Explica el propósito de la app con navegación intuitiva
 2. **Sincronización 100% Manual**: Control total sobre cuándo sincronizar
 3. **Backup Automático**: Crea JSON de cada registro guardado

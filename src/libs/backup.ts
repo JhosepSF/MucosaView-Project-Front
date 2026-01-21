@@ -1,5 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import * as MediaLibrary from 'expo-media-library';
 import { db } from './db';
+import { Platform } from 'react-native';
 
 /**
  * Guarda un backup JSON de los datos en el almacenamiento del dispositivo
@@ -32,12 +34,12 @@ export async function backupToJSON(data: any, filename: string): Promise<string>
 }
 
 /**
- * Exporta la base de datos completa a un archivo
+ * Exporta la base de datos completa a Downloads
  */
 export async function exportDatabase(): Promise<string> {
   try {
     const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\./g, '-');
-    const backupPath = `${FileSystem.documentDirectory}mucosaview_backup_${timestamp}.db`;
+    const filename = `mucosaview_backup_${timestamp}.db`;
     
     // SQLite path en Expo
     const dbPath = `${FileSystem.documentDirectory}SQLite/mucosaview.db`;
@@ -48,14 +50,37 @@ export async function exportDatabase(): Promise<string> {
       throw new Error('Base de datos no encontrada');
     }
     
-    // Copiar base de datos
+    // Primero copiar a cache
+    const tempPath = `${FileSystem.cacheDirectory}${filename}`;
     await FileSystem.copyAsync({
       from: dbPath,
-      to: backupPath
+      to: tempPath
     });
     
-    console.log(`✅ Base de datos exportada: ${backupPath}`);
-    return backupPath;
+    if (Platform.OS === 'android') {
+      // Solicitar permisos de MediaLibrary
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status === 'granted') {
+        // Guardar en Downloads usando MediaLibrary
+        const asset = await MediaLibrary.createAssetAsync(tempPath);
+        const album = await MediaLibrary.getAlbumAsync('Download');
+        
+        if (album) {
+          await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+        } else {
+          await MediaLibrary.createAlbumAsync('Download', asset, false);
+        }
+        
+        console.log(`✅ Base de datos exportada a Downloads`);
+        return `/storage/emulated/0/Download/${filename}`;
+      } else {
+        console.log('Permisos denegados, guardando en cache');
+        return tempPath;
+      }
+    } else {
+      // iOS: guardar en directorio de la app
+      return tempPath;
+    }
   } catch (error) {
     console.error('Error al exportar base de datos:', error);
     throw error;

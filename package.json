@@ -1,6 +1,6 @@
 {
   "name": "mucosaview-app",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "private": true,
   "license": "0BSD",
   "main": "index.ts",
@@ -29,6 +29,7 @@
     "expo-image-manipulator": "~14.0.8",
     "expo-image-picker": "~17.0.10",
     "expo-location": "~19.0.8",
+    "expo-media-library": "~18.2.1",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
