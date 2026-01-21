@@ -1,9 +1,9 @@
 # MucosaView - Frontend (Aplicación Móvil)
 
-**Versión:** 1.4.3
+**Versión:** 1.4.4
 
 ## 📱 Descripción
-Aplicación móvil desarrollada en React Native con Expo para la recolección de datos clínicos y fotografías de pacientes gestantes en zonas rurales. Permite captura offline con sincronización manual controlada, sistema de backup automático y verificación de integridad de datos. Exportación funcional usando diálogo nativo de compartir para guardar backups donde el usuario elija.
+Aplicación móvil desarrollada en React Native con Expo para la recolección de datos clínicos y fotografías de pacientes gestantes en zonas rurales. Permite captura offline con sincronización manual controlada, sistema de backup automático y verificación de integridad de datos. Exportación funcional de base de datos, JSON y fotos de pacientes usando diálogo nativo de compartir.
 
 ## 🚀 Repositorios del Proyecto
 - **Frontend (App Móvil)**: https://github.com/JhosepSF/MucosaView-Project-Front
@@ -157,10 +157,11 @@ Front/
 - **Backup automático JSON**: Al guardar cada registro se crea backup local
 - **Export completo DB**: Exporta base de datos SQLite completa (.db)
 - **Export datos JSON**: Exporta todas las tablas en formato JSON legible
+- **Export fotos pacientes**: Exporta fotos de pacientes específicos por DNI
 - **Compartir backups**: Share API para enviar vía WhatsApp/email
 - **Limpieza automática**: Mantiene solo los últimos 10 backups
 - **Ubicación**: `FileSystem.documentDirectory/backups/`
-- **6 Niveles de protección**: SQLite + JSON + Cola + FileSystem + Export + Verificación
+- **7 Niveles de protección**: SQLite + JSON + Cola + FileSystem + Export DB + Export JSON + Export Fotos
 
 Ver [BACKUP_SYSTEM.md](BACKUP_SYSTEM.md) para documentación completa del sistema de backup.
 
@@ -388,9 +389,9 @@ await cleanOldBackups(10); // Mantener últimos 10 backups (ajustable)
 5. Puedes exportar DB o JSON completo en cualquier momento
 6. Los backups están en `/backups/` del dispositivo
 
-### ⚠️ ¿Cómo guardar los backups en Downloads?
-✅ **Instrucciones v1.4.3**:
-1. Instala la versión 1.4.3
+### ¿Cómo guardar los backups en Downloads?
+✅ **Instrucciones v1.4.4**:
+1. Instala la versión 1.4.4
 2. Presiona "Export DB" o "Export JSON"
 3. Se abrirá el diálogo de compartir de Android
 4. **Opciones disponibles:**
@@ -407,6 +408,25 @@ await cleanOldBackups(10); // Mantener últimos 10 backups (ajustable)
 - ✅ El usuario tiene control total
 - ✅ Puede compartir a múltiples destinos
 - ✅ Sin errores de MIME type o permisos
+
+### 📸 ¿Cómo exportar fotos de pacientes específicos?
+✅ **Nuevo en v1.4.4**:
+1. Ve a **Cola de Sincronización**
+2. Presiona el botón **"Fotos"** (morado con icono de imágenes)
+3. Ingresa los DNIs separados por comas:
+   - Ejemplo: `73748665, 79217062, 45602895`
+4. Presiona **"Exportar"**
+5. Para cada foto se abrirá el diálogo de compartir
+6. Guarda cada foto donde prefieras:
+   - **Downloads**: Para luego subirlas al servidor
+   - **WhatsApp/Gmail**: Envíatelas a ti mismo
+   - **Drive**: Backup en la nube
+
+**Casos de uso:**
+- Recuperar fotos de pacientes no sincronizadas
+- Enviar fotos a otro dispositivo
+- Guardar fotos antes de reinstalar la app
+- Subir manualmente al admin de Django
 
 ### Sincronización falló pero no sé qué datos se perdieron
 1. Ve a "Cola de sincronización"
@@ -535,20 +555,27 @@ Para más información:
 
 ## 🔄 Versiones
 
-### v1.4.3 (Actual) - 21 de enero 2026
-**Exportación con Diálogo Nativo de Compartir:**
-- ✅ Implementado expo-sharing (reemplaza expo-media-library)
-- ✅ Al exportar, se abre el diálogo nativo de Android para compartir
-- ✅ El usuario elige dónde guardar: Downloads, WhatsApp, Gmail, Drive, etc.
-- ✅ Funciona con cualquier tipo de archivo (.db, .json)
-- ✅ Sin errores de MIME type
-- ✅ Más intuitivo y compatible con todas las versiones de Android
+### v1.4.4 (Actual) - 21 de enero 2026
+**Exportación de Fotos de Pacientes:**
+- ✅ Botón "Fotos" en pantalla de sincronización
+- ✅ Exportar fotos de múltiples pacientes por DNI
+- ✅ Ingresa DNIs separados por comas (ej: 12345678, 87654321)
+- ✅ Comparte cada foto usando diálogo nativo de Android
+- ✅ Guarda en Downloads, WhatsApp, Gmail, Drive, etc.
+- ✅ Ideal para recuperar fotos del celular y subirlas al servidor
 
-**Solución definitiva:**
-- Removido MediaLibrary que causaba error con archivos .db
-- El usuario tiene control total sobre dónde guardar el backup
-- Compatible con todas las apps de almacenamiento y mensajería
-- Funciona en Android 7+ hasta Android 14+
+**Casos de uso:**
+- Pacientes con fotos solo en el celular (no sincronizadas)
+- Recuperar imágenes para subirlas manualmente al admin de Django
+- Compartir fotos por WhatsApp/email para respaldo
+
+### v1.4.3 - 21 de enero 2026
+**Exportación con Diálogo Nativo de Compartir:**
+- Implementado expo-sharing (reemplaza expo-media-library)
+- Al exportar, se abre el diálogo nativo de Android para compartir
+- El usuario elige dónde guardar: Downloads, WhatsApp, Gmail, Drive, etc.
+- Funciona con cualquier tipo de archivo (.db, .json)
+- Sin errores de MIME type
 
 ### v1.4.2 - 21 de enero 2026
 **Intento con MediaLibrary (deprecado):**
@@ -583,16 +610,16 @@ Para más información:
 
 ---
 
-## 🎯 Características Destacadas v1.4.3
+## 🎯 Características Destacadas v1.4.4
 
-### 🆕 Novedades v1.4.3
-1. **Diálogo Nativo de Compartir**: Usa expo-sharing para compatibilidad universal
-2. **Exportación Flexible**: El usuario elige dónde guardar (Downloads, WhatsApp, Drive, etc.)
-3. **Sin Errores de MIME**: Funciona con cualquier tipo de archivo (.db, .json)
-4. **UX Mejorada**: Más intuitivo que versiones anteriores
-5. **Compatibilidad Total**: Android 7+ hasta Android 14+ sin problemas
+### 🆕 Novedades v1.4.4
+1. **Exportar Fotos por DNI**: Botón "Fotos" para exportar imágenes de pacientes específicos
+2. **Múltiples Pacientes**: Ingresa varios DNIs separados por comas
+3. **Compartir Individual**: Cada foto se comparte usando diálogo nativo
+4. **Recuperación de Datos**: Ideal para fotos no sincronizadas al servidor
+5. **Flexible**: Guarda en Downloads, envía por WhatsApp, sube a Drive, etc.
 
-### ✨ Funcionalidades Principales (v1.4.0 a v1.4.3)
+### ✨ Funcionalidades Principales (v1.4.0 a v1.4.4)
 1. **Pantalla de Bienvenida**: Explica el propósito de la app con navegación intuitiva
 2. **Sincronización 100% Manual**: Control total sobre cuándo sincronizar
 3. **Backup Automático**: Crea JSON de cada registro guardado

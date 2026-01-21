@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, Alert, ScrollView, TextInput } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { debugDumpQueue, trySync } from '../libs/sync';
-import { exportDatabase, exportAllDataAsJSON, cleanOldBackups, shareFile } from '../libs/backup';
+import { exportDatabase, exportAllDataAsJSON, cleanOldBackups, shareFile, sharePatientPhotos } from '../libs/backup';
 import { commonStyles, COLORS } from '../styles';
 
 type QueueItem = {
@@ -97,6 +97,46 @@ export default function SyncQueueScreen() {
     } catch (error) {
       Alert.alert('Error', 'No se pudo exportar los datos: ' + String(error));
     }
+  };
+
+  const onExportPhotos = () => {
+    Alert.prompt(
+      '📸 Exportar Fotos de Pacientes',
+      'Ingresa los DNIs separados por comas:\nEjemplo: 73748665, 79217062, 45602895',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Exportar',
+          onPress: async (text) => {
+            if (!text || text.trim() === '') {
+              Alert.alert('Error', 'Debes ingresar al menos un DNI');
+              return;
+            }
+            
+            try {
+              const dnis = text.split(',').map(d => d.trim()).filter(d => d.length > 0);
+              
+              if (dnis.length === 0) {
+                Alert.alert('Error', 'No se encontraron DNIs válidos');
+                return;
+              }
+              
+              await sharePatientPhotos(dnis);
+              
+              Alert.alert(
+                '✅ Fotos exportadas',
+                `Las fotos de ${dnis.length} paciente(s) se han compartido. Úsalas para subirlas al servidor.`,
+                [{ text: 'OK' }]
+              );
+            } catch (error) {
+              Alert.alert('Error', String(error));
+            }
+          }
+        }
+      ],
+      'plain-text',
+      ''
+    );
   };
 
   const toggleExpand = (id: number) => {
@@ -214,6 +254,13 @@ export default function SyncQueueScreen() {
           <Ionicons name="save" size={16} color="#fff" style={{ marginRight: 4 }} />
           <Text style={[commonStyles.btnText, { fontSize: 12 }]}>Export DB</Text>
         </TouchableOpacity>
+        <TouchableOpacity 
+          style={[commonStyles.btn, localStyles.btnPhoto]} 
+          onPress={onExportPhotos}
+        >
+          <Ionicons name="images" size={16} color="#fff" style={{ marginRight: 4 }} />
+          <Text style={[commonStyles.btnText, { fontSize: 12 }]}>Fotos</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Modal de carga durante sincronización */}
@@ -224,6 +271,8 @@ export default function SyncQueueScreen() {
             <Text style={localStyles.modalText}>Sincronizando datos...</Text>
             <Text style={localStyles.modalSubtext}>Por favor espera</Text>
           </View>
+        </View>
+      </Modal>
         </View>
       </Modal>
 
@@ -299,6 +348,15 @@ const localStyles = StyleSheet.create({
     flex: 1,
     width: 'auto',
     backgroundColor: COLORS.orangeBtn,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnPhoto: {
+    flex: 1,
+    width: 'auto',
+    backgroundColor: '#9b59b6',
     paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',

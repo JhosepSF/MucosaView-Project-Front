@@ -88,6 +88,81 @@ export async function shareFile(filepath: string, dialogTitle: string = 'Compart
 }
 
 /**
+ * Exporta fotos de un paciente específico por DNI
+ */
+export async function exportPatientPhotos(dni: string): Promise<string[]> {
+  try {
+    // Obtener registros del paciente
+    const records = db.getAllSync(
+      'SELECT client_uuid FROM records WHERE dni = ? LIMIT 1',
+      [dni]
+    ) as any[];
+    
+    if (records.length === 0) {
+      throw new Error(`No se encontró paciente con DNI: ${dni}`);
+    }
+    
+    const clientUuid = records[0].client_uuid;
+    
+    // Obtener todas las fotos del paciente
+    const photos = db.getAllSync(
+      'SELECT filename, local_uri FROM files WHERE client_uuid = ? ORDER BY visita, tipo',
+      [clientUuid]
+    ) as any[];
+    
+    if (photos.length === 0) {
+      throw new Error(`No hay fotos para el paciente DNI: ${dni}`);
+    }
+    
+    const sharedPhotos: string[] = [];
+    
+    // Compartir cada foto
+    for (const photo of photos) {
+      const photoPath = photo.local_uri.replace('file://', '');
+      const photoInfo = await FileSystem.getInfoAsync(photoPath);
+      
+      if (photoInfo.exists) {
+        sharedPhotos.push(photoPath);
+      }
+    }
+    
+    return sharedPhotos;
+  } catch (error) {
+    console.error('Error al exportar fotos del paciente:', error);
+    throw error;
+  }
+}
+
+/**
+ * Comparte fotos de pacientes específicos
+ */
+export async function sharePatientPhotos(dnis: string[]): Promise<void> {
+  try {
+    const allPhotos: string[] = [];
+    
+    for (const dni of dnis) {
+      const photos = await exportPatientPhotos(dni);
+      allPhotos.push(...photos);
+    }
+    
+    if (allPhotos.length === 0) {
+      throw new Error('No se encontraron fotos para compartir');
+    }
+    
+    // Compartir todas las fotos
+    for (const photoPath of allPhotos) {
+      const filename = photoPath.split('/').pop() || 'photo.png';
+      await shareFile(photoPath, `Foto: ${filename}`);
+    }
+    
+    console.log(`✅ ${allPhotos.length} fotos compartidas`);
+  } catch (error) {
+    console.error('Error al compartir fotos:', error);
+    throw error;
+  }
+}
+
+/**
  * Exporta todos los datos como JSON (registros, archivos, cola de sync)
  */
 export async function exportAllDataAsJSON(): Promise<string> {
