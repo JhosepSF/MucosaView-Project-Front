@@ -130,8 +130,8 @@ export async function exportPatientPhotos(dni: string): Promise<string[]> {
       const photoInfo = await FileSystem.getInfoAsync(photoPath);
       
       if (photoInfo.exists) {
-        // Guardar sin el prefijo file:// para compartir
-        sharedPhotos.push(photoPath.replace('file://', ''));
+        // Guardar CON el prefijo file:// porque expo-sharing lo requiere
+        sharedPhotos.push(photoPath);
       } else {
         console.warn(`⚠️ Foto no encontrada: ${photoPath}`);
       }
