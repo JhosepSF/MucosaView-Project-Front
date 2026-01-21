@@ -1,7 +1,9 @@
 # MucosaView - Frontend (Aplicación Móvil)
 
+**Versión:** 1.4.1
+
 ## 📱 Descripción
-Aplicación móvil desarrollada en React Native con Expo para la recolección de datos clínicos y fotografías de pacientes gestantes en zonas rurales. Permite captura offline con sincronización manual controlada, sistema de backup automático y verificación de integridad de datos.
+Aplicación móvil desarrollada en React Native con Expo para la recolección de datos clínicos y fotografías de pacientes gestantes en zonas rurales. Permite captura offline con sincronización manual controlada, sistema de backup automático y verificación de integridad de datos. Incluye permisos completos de almacenamiento para exportación de datos.
 
 ## 🚀 Repositorios del Proyecto
 - **Frontend (App Móvil)**: https://github.com/JhosepSF/MucosaView-Project-Front
@@ -19,7 +21,11 @@ Aplicación móvil desarrollada en React Native con Expo para la recolección de
 ### Dispositivos Compatibles
 - **Android**: 7.0 (API 24) o superior
 - **iOS**: 13.0 o superior
-- **Permisos necesarios**: Cámara, Ubicación GPS, Almacenamiento
+- **Permisos necesarios**: 
+  - Cámara
+  - Ubicación GPS
+  - Almacenamiento externo (lectura/escritura)
+  - Acceso a imágenes y videos (Android 13+)
 
 ## 🔧 Instalación
 
@@ -381,6 +387,21 @@ await cleanOldBackups(10); // Mantener últimos 10 backups (ajustable)
 5. Puedes exportar DB o JSON completo en cualquier momento
 6. Los backups están en `/backups/` del dispositivo
 
+### ⚠️ Error: "No se pueden exportar archivos" o archivos con 0KB
+✅ **Solucionado en v1.4.1**:
+1. Asegúrate de tener la versión 1.4.1 instalada
+2. Al presionar "Export DB" o "Export JSON", la app pedirá permisos
+3. Concede permiso de "Archivos y multimedia"
+4. Vuelve a intentar exportar
+5. El archivo se guardará en Downloads/
+
+**Alternativa manual con ADB:**
+```bash
+# Conceder permisos manualmente
+adb shell pm grant com.tuorg.mucosaviewapp android.permission.WRITE_EXTERNAL_STORAGE
+adb shell pm grant com.tuorg.mucosaviewapp android.permission.READ_EXTERNAL_STORAGE
+```
+
 ### Sincronización falló pero no sé qué datos se perdieron
 1. Ve a "Cola de sincronización"
 2. Presiona "Export JSON" para guardar todos los datos
@@ -424,12 +445,28 @@ Fuente: INEI - Instituto Nacional de Estadística e Informática
 
 ## 📱 Permisos Requeridos
 
-### Android
-```xml
-<uses-permission android:name="android.permission.CAMERA" />
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+### Android (app.json - v1.4.1)
+```json
+"permissions": [
+  "android.permission.INTERNET",
+  "android.permission.CAMERA",
+  "android.permission.ACCESS_COARSE_LOCATION",
+  "android.permission.ACCESS_FINE_LOCATION",
+  "android.permission.RECORD_AUDIO",
+  "android.permission.READ_EXTERNAL_STORAGE",
+  "android.permission.WRITE_EXTERNAL_STORAGE",
+  "android.permission.READ_MEDIA_IMAGES",
+  "android.permission.READ_MEDIA_VIDEO"
+]
 ```
+
+**Nuevos en v1.4.1:**
+- `READ_EXTERNAL_STORAGE`: Leer archivos de almacenamiento externo
+- `WRITE_EXTERNAL_STORAGE`: Escribir backups en Downloads
+- `READ_MEDIA_IMAGES`: Acceso a imágenes (Android 13+)
+- `READ_MEDIA_VIDEO`: Acceso a videos (Android 13+)
+
+**Función:** Permiten exportar base de datos y backups JSON a la carpeta Downloads del dispositivo para compartir vía WhatsApp/email.
 
 ### iOS
 ```xml
@@ -491,17 +528,52 @@ Para más información:
 - **Issues**: Reportar en GitHub Issues
 
 ## 🔄 Versiones
-- **v1.0.0** - Versión inicial con funcionalidad completa offline-first
-- **v1.1.0** - Sistema de backup automático y exportación
-- **v1.2.0** - Verificación de integridad post-sincronización
-- **v1.3.0** - Sincronización manual con control total
-- **v1.4.0** - Pantalla de bienvenida y mejoras de navegación
+
+### v1.4.1 (Actual) - 21 de enero 2026
+**Mejoras de Permisos:**
+- ✅ Agregados permisos de almacenamiento externo
+- ✅ Soporte para Android 13+ (READ_MEDIA_IMAGES/VIDEO)
+- ✅ Exportación de DB y JSON ahora funcional en todos los dispositivos
+- ✅ Los backups se pueden guardar directamente en Downloads
+- ✅ Compartir backups vía WhatsApp/email completamente operativo
+
+**Solución de problemas:**
+- Se resolvió el error de permisos al exportar base de datos
+- La app ahora solicita automáticamente permisos de almacenamiento
+- Los archivos exportados son accesibles desde el explorador de archivos
+
+### v1.4.0 - 20 de enero 2026
+- Pantalla de bienvenida
+- Sistema de backup automático JSON
+- Verificación de integridad post-sincronización
+- Export DB/JSON con Share API
+- Sincronización 100% manual
+- Navegación mejorada con stack limpio
+
+### v1.3.0
+- Control total de sincronización manual
+
+### v1.2.0
+- Verificación de integridad
+
+### v1.1.0
+- Sistema de backup automático
+
+### v1.0.0
+- Versión inicial offline-first
 
 ---
 
-## 🎯 Características Destacadas v1.4.0
+## 🎯 Características Destacadas v1.4.1
 
-### ✨ Nuevas Funcionalidades
+### 🆕 Novedades v1.4.1
+1. **Permisos de Almacenamiento Completos**: READ/WRITE_EXTERNAL_STORAGE
+2. **Soporte Android 13+**: READ_MEDIA_IMAGES y READ_MEDIA_VIDEO
+3. **Export Funcional**: DB y JSON ahora se guardan correctamente en Downloads
+4. **Solicitud Automática**: La app pide permisos al intentar exportar
+5. **Compartir sin Restricciones**: WhatsApp, email, Drive, etc.
+
+### ✨ Funcionalidades Principales (v1.4.0 + v1.4.1)
 1. **Pantalla de Bienvenida**: Explica el propósito de la app con navegación intuitiva
 2. **Sincronización 100% Manual**: Control total sobre cuándo sincronizar
 3. **Backup Automático**: Crea JSON de cada registro guardado
