@@ -22,6 +22,8 @@ export default function SyncQueueScreen() {
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [photoDNIs, setPhotoDNIs] = useState('');
 
   const load = () => {
     setLoading(true);
@@ -100,43 +102,36 @@ export default function SyncQueueScreen() {
   };
 
   const onExportPhotos = () => {
-    Alert.prompt(
-      '📸 Exportar Fotos de Pacientes',
-      'Ingresa los DNIs separados por comas:\nEjemplo: 73748665, 79217062, 45602895',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Exportar',
-          onPress: async (text) => {
-            if (!text || text.trim() === '') {
-              Alert.alert('Error', 'Debes ingresar al menos un DNI');
-              return;
-            }
-            
-            try {
-              const dnis = text.split(',').map(d => d.trim()).filter(d => d.length > 0);
-              
-              if (dnis.length === 0) {
-                Alert.alert('Error', 'No se encontraron DNIs válidos');
-                return;
-              }
-              
-              await sharePatientPhotos(dnis);
-              
-              Alert.alert(
-                '✅ Fotos exportadas',
-                `Las fotos de ${dnis.length} paciente(s) se han compartido. Úsalas para subirlas al servidor.`,
-                [{ text: 'OK' }]
-              );
-            } catch (error) {
-              Alert.alert('Error', String(error));
-            }
-          }
-        }
-      ],
-      'plain-text',
-      ''
-    );
+    setShowPhotoModal(true);
+  };
+
+  const handleExportPhotos = async () => {
+    if (!photoDNIs || photoDNIs.trim() === '') {
+      Alert.alert('Error', 'Debes ingresar al menos un DNI');
+      return;
+    }
+    
+    try {
+      const dnis = photoDNIs.split(',').map(d => d.trim()).filter(d => d.length > 0);
+      
+      if (dnis.length === 0) {
+        Alert.alert('Error', 'No se encontraron DNIs válidos');
+        return;
+      }
+      
+      setShowPhotoModal(false);
+      setPhotoDNIs('');
+      
+      await sharePatientPhotos(dnis);
+      
+      Alert.alert(
+        '✅ Fotos exportadas',
+        `Las fotos de ${dnis.length} paciente(s) se han compartido. Úsalas para subirlas al servidor.`,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      Alert.alert('Error', String(error));
+    }
   };
 
   const toggleExpand = (id: number) => {
@@ -273,8 +268,6 @@ export default function SyncQueueScreen() {
           </View>
         </View>
       </Modal>
-        </View>
-      </Modal>
 
       <FlatList
         data={items}
@@ -289,6 +282,56 @@ export default function SyncQueueScreen() {
           </View>
         }
       />
+
+      {/* Modal para ingreso de DNIs */}
+      <Modal
+        visible={showPhotoModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPhotoModal(false)}
+      >
+        <View style={localStyles.modalOverlay}>
+          <View style={localStyles.modalContent}>
+            <Text style={localStyles.modalTitle}>📸 Exportar Fotos de Pacientes</Text>
+            <Text style={localStyles.modalSubtitle}>
+              Ingresa los DNIs separados por comas:
+            </Text>
+            <Text style={localStyles.modalExample}>
+              Ejemplo: 73748665, 79217062, 45602895
+            </Text>
+            
+            <TextInput
+              style={localStyles.modalInput}
+              value={photoDNIs}
+              onChangeText={setPhotoDNIs}
+              placeholder="DNIs separados por comas"
+              placeholderTextColor="#999"
+              multiline
+              numberOfLines={3}
+              autoFocus
+            />
+            
+            <View style={localStyles.modalButtons}>
+              <TouchableOpacity
+                style={[localStyles.modalButton, localStyles.modalButtonCancel]}
+                onPress={() => {
+                  setShowPhotoModal(false);
+                  setPhotoDNIs('');
+                }}
+              >
+                <Text style={localStyles.modalButtonTextCancel}>Cancelar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[localStyles.modalButton, localStyles.modalButtonConfirm]}
+                onPress={handleExportPhotos}
+              >
+                <Text style={localStyles.modalButtonTextConfirm}>Exportar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -456,9 +499,81 @@ const localStyles = StyleSheet.create({
   },
   bodyHint: {
     fontSize: 11,
-    color: COLORS.info,
-    marginTop: 8,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  modalExample: {
+    fontSize: 12,
+    color: '#666',
     fontStyle: 'italic',
+    marginBottom: 16,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#f5f5f5',
+  },
+  modalButtonConfirm: {
+    backgroundColor: '#9C27B0',
+  },
+  modalButtonTextCancel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  modalButtonTextConfirm: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -475,24 +590,6 @@ const localStyles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
     marginTop: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    minWidth: 200,
   },
   modalText: {
     fontSize: 18,
