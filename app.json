@@ -2,7 +2,7 @@
   "expo": {
     "name": "MucosaView",
     "slug": "mucosaview-app",
-    "version": "1.4.0",
+    "version": "1.4.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -35,7 +35,11 @@
         "android.permission.CAMERA",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO"
       ],
       "package": "com.tuorg.mucosaviewapp"
     },
