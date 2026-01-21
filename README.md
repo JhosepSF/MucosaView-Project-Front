@@ -1,6 +1,6 @@
 # MucosaView - Frontend (Aplicación Móvil)
 
-**Versión:** 1.4.4
+**Versión:** 1.4.5
 
 ## 📱 Descripción
 Aplicación móvil desarrollada en React Native con Expo para la recolección de datos clínicos y fotografías de pacientes gestantes en zonas rurales. Permite captura offline con sincronización manual controlada, sistema de backup automático y verificación de integridad de datos. Exportación funcional de base de datos, JSON y fotos de pacientes usando diálogo nativo de compartir.
@@ -390,7 +390,7 @@ await cleanOldBackups(10); // Mantener últimos 10 backups (ajustable)
 6. Los backups están en `/backups/` del dispositivo
 
 ### ¿Cómo guardar los backups en Downloads?
-✅ **Instrucciones v1.4.4**:
+✅ **Instrucciones v1.4.5**:
 1. Instala la versión 1.4.4
 2. Presiona "Export DB" o "Export JSON"
 3. Se abrirá el diálogo de compartir de Android
@@ -410,7 +410,7 @@ await cleanOldBackups(10); // Mantener últimos 10 backups (ajustable)
 - ✅ Sin errores de MIME type o permisos
 
 ### 📸 ¿Cómo exportar fotos de pacientes específicos?
-✅ **Nuevo en v1.4.4**:
+✅ **Nuevo en v1.4.4+ (Mejorado en v1.4.5)**:
 1. Ve a **Cola de Sincronización**
 2. Presiona el botón **"Fotos"** (morado con icono de imágenes)
 3. Ingresa los DNIs separados por comas:
@@ -555,7 +555,21 @@ Para más información:
 
 ## 🔄 Versiones
 
-### v1.4.4 (Actual) - 21 de enero 2026
+### v1.4.5 (Actual) - 21 de enero 2026
+**Corrección de Búsqueda de Fotos:**
+- ✅ Fix: Búsqueda correcta de fotos en base de datos
+- ✅ Usa rutas desde tabla `files` (local_uri)
+- ✅ Manejo correcto de prefijo `file://` para FileSystem
+- ✅ Verificación de existencia física de cada archivo
+- ✅ Mensajes de advertencia para fotos faltantes
+- ✅ Elimina búsqueda fallback innecesaria en directorios
+
+**Mejoras técnicas:**
+- Consulta directa a BD para obtener rutas correctas
+- Compatible con rutas absolutas de Android: `/data/user/0/com.tuorg.mucosaviewapp/files/mucosa/{dni}/visita-{n}/`
+- Compartir funcional con expo-sharing
+
+### v1.4.4 - 21 de enero 2026
 **Exportación de Fotos de Pacientes:**
 - ✅ Botón "Fotos" en pantalla de sincronización
 - ✅ Exportar fotos de múltiples pacientes por DNI
@@ -610,16 +624,21 @@ Para más información:
 
 ---
 
-## 🎯 Características Destacadas v1.4.4
+## 🎯 Características Destacadas v1.4.5
 
-### 🆕 Novedades v1.4.4
+### 🆕 Novedades v1.4.5
+1. **Búsqueda Corregida**: Exportación de fotos ahora usa rutas correctas de la BD
+2. **Validación Mejorada**: Verifica existencia física de cada archivo antes de compartir
+3. **Mejor Logging**: Mensajes de advertencia para fotos no encontradas
+
+### ✨ Funcionalidades v1.4.4
 1. **Exportar Fotos por DNI**: Botón "Fotos" para exportar imágenes de pacientes específicos
 2. **Múltiples Pacientes**: Ingresa varios DNIs separados por comas
 3. **Compartir Individual**: Cada foto se comparte usando diálogo nativo
 4. **Recuperación de Datos**: Ideal para fotos no sincronizadas al servidor
 5. **Flexible**: Guarda en Downloads, envía por WhatsApp, sube a Drive, etc.
 
-### ✨ Funcionalidades Principales (v1.4.0 a v1.4.4)
+### ✨ Funcionalidades Principales (v1.4.0 a v1.4.5)
 1. **Pantalla de Bienvenida**: Explica el propósito de la app con navegación intuitiva
 2. **Sincronización 100% Manual**: Control total sobre cuándo sincronizar
 3. **Backup Automático**: Crea JSON de cada registro guardado

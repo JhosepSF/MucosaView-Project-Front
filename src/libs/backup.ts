@@ -104,7 +104,7 @@ export async function exportPatientPhotos(dni: string): Promise<string[]> {
     
     const clientUuid = records[0].client_uuid;
     
-    // Obtener todas las fotos del paciente
+    // Obtener todas las fotos del paciente desde la BD
     const photos = db.getAllSync(
       'SELECT filename, local_uri FROM files WHERE client_uuid = ? ORDER BY visita, tipo',
       [clientUuid]
@@ -116,14 +116,29 @@ export async function exportPatientPhotos(dni: string): Promise<string[]> {
     
     const sharedPhotos: string[] = [];
     
-    // Compartir cada foto
+    // Verificar cada foto
     for (const photo of photos) {
-      const photoPath = photo.local_uri.replace('file://', '');
+      // La ruta en BD puede venir con o sin file://
+      let photoPath = photo.local_uri;
+      
+      // Si no tiene file://, agregarlo para que FileSystem lo entienda
+      if (!photoPath.startsWith('file://')) {
+        photoPath = 'file://' + photoPath;
+      }
+      
+      // Verificar si existe
       const photoInfo = await FileSystem.getInfoAsync(photoPath);
       
       if (photoInfo.exists) {
-        sharedPhotos.push(photoPath);
+        // Guardar sin el prefijo file:// para compartir
+        sharedPhotos.push(photoPath.replace('file://', ''));
+      } else {
+        console.warn(`⚠️ Foto no encontrada: ${photoPath}`);
       }
+    }
+    
+    if (sharedPhotos.length === 0) {
+      throw new Error(`No se encontraron archivos físicos para el paciente DNI: ${dni}`);
     }
     
     return sharedPhotos;
