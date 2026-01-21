@@ -1,7 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import * as MediaLibrary from 'expo-media-library';
+import * as Sharing from 'expo-sharing';
 import { db } from './db';
-import { Platform } from 'react-native';
 
 /**
  * Guarda un backup JSON de los datos en el almacenamiento del dispositivo
@@ -34,7 +33,7 @@ export async function backupToJSON(data: any, filename: string): Promise<string>
 }
 
 /**
- * Exporta la base de datos completa a Downloads
+ * Exporta la base de datos completa y permite compartirla
  */
 export async function exportDatabase(): Promise<string> {
   try {
@@ -50,39 +49,40 @@ export async function exportDatabase(): Promise<string> {
       throw new Error('Base de datos no encontrada');
     }
     
-    // Primero copiar a cache
-    const tempPath = `${FileSystem.cacheDirectory}${filename}`;
+    // Copiar a un lugar compartible
+    const sharePath = `${FileSystem.cacheDirectory}${filename}`;
     await FileSystem.copyAsync({
       from: dbPath,
-      to: tempPath
+      to: sharePath
     });
     
-    if (Platform.OS === 'android') {
-      // Solicitar permisos de MediaLibrary
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status === 'granted') {
-        // Guardar en Downloads usando MediaLibrary
-        const asset = await MediaLibrary.createAssetAsync(tempPath);
-        const album = await MediaLibrary.getAlbumAsync('Download');
-        
-        if (album) {
-          await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
-        } else {
-          await MediaLibrary.createAlbumAsync('Download', asset, false);
-        }
-        
-        console.log(`✅ Base de datos exportada a Downloads`);
-        return `/storage/emulated/0/Download/${filename}`;
-      } else {
-        console.log('Permisos denegados, guardando en cache');
-        return tempPath;
-      }
-    } else {
-      // iOS: guardar en directorio de la app
-      return tempPath;
-    }
+    console.log(`✅ Base de datos exportada: ${sharePath}`);
+    return sharePath;
   } catch (error) {
     console.error('Error al exportar base de datos:', error);
+    throw error;
+  }
+}
+
+/**
+ * Comparte un archivo usando el diálogo nativo de compartir
+ */
+export async function shareFile(filepath: string, dialogTitle: string = 'Compartir archivo'): Promise<void> {
+  try {
+    const isAvailable = await Sharing.isAvailableAsync();
+    if (!isAvailable) {
+      throw new Error('Compartir no está disponible en este dispositivo');
+    }
+    
+    await Sharing.shareAsync(filepath, {
+      dialogTitle: dialogTitle,
+      mimeType: 'application/octet-stream',
+      UTI: 'public.database'
+    });
+    
+    console.log('✅ Archivo compartido');
+  } catch (error) {
+    console.error('Error al compartir archivo:', error);
     throw error;
   }
 }

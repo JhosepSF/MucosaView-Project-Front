@@ -1,9 +1,9 @@
 # MucosaView - Frontend (Aplicación Móvil)
 
-**Versión:** 1.4.2
+**Versión:** 1.4.3
 
 ## 📱 Descripción
-Aplicación móvil desarrollada en React Native con Expo para la recolección de datos clínicos y fotografías de pacientes gestantes en zonas rurales. Permite captura offline con sincronización manual controlada, sistema de backup automático y verificación de integridad de datos. Exportación funcional de base de datos a carpeta Downloads usando MediaLibrary.
+Aplicación móvil desarrollada en React Native con Expo para la recolección de datos clínicos y fotografías de pacientes gestantes en zonas rurales. Permite captura offline con sincronización manual controlada, sistema de backup automático y verificación de integridad de datos. Exportación funcional usando diálogo nativo de compartir para guardar backups donde el usuario elija.
 
 ## 🚀 Repositorios del Proyecto
 - **Frontend (App Móvil)**: https://github.com/JhosepSF/MucosaView-Project-Front
@@ -193,7 +193,7 @@ Ver [BACKUP_SYSTEM.md](BACKUP_SYSTEM.md) para documentación completa del sistem
 ### Almacenamiento y Datos
 - **expo-sqlite**: Base de datos local (16.0.10)
 - **expo-file-system**: Sistema de archivos (19.0.21)
-- **expo-media-library**: Exportación a Downloads (17.0.5)
+- **expo-sharing**: Compartir archivos nativamente (13.0.5)
 - **@tanstack/react-query**: Cache y gestión de estado
 
 ### Captura y Ubicación
@@ -388,19 +388,25 @@ await cleanOldBackups(10); // Mantener últimos 10 backups (ajustable)
 5. Puedes exportar DB o JSON completo en cualquier momento
 6. Los backups están en `/backups/` del dispositivo
 
-### ⚠️ Error: "No se pueden exportar archivos" o archivos con 0KB
-✅ **Solucionado en v1.4.2**:
-1. Asegúrate de tener la versión 1.4.2 instalada
-2. Al presionar "Export DB", MediaLibrary pedirá permisos automáticamente
-3. Concede el permiso cuando aparezca el diálogo
-4. El archivo .db se guardará directamente en Downloads
-5. Abre el explorador de archivos → Downloads para verificar
+### ⚠️ ¿Cómo guardar los backups en Downloads?
+✅ **Instrucciones v1.4.3**:
+1. Instala la versión 1.4.3
+2. Presiona "Export DB" o "Export JSON"
+3. Se abrirá el diálogo de compartir de Android
+4. **Opciones disponibles:**
+   - **Guardar en archivos**: Elige "Descargas" o "Downloads"
+   - **WhatsApp**: Envíate el archivo a ti mismo
+   - **Gmail**: Envíalo a tu correo
+   - **Google Drive**: Guárdalo en la nube
+   - **Bluetooth**: Transferir a otro dispositivo
+5. El archivo se guardará donde tú elijas
 
-**¿Siguen sin aparecer los archivos?**
-1. Verifica que tienes v1.4.2 (ve a Ajustes → Apps → MucosaView)
-2. Revisa Downloads con el explorador de archivos del teléfono
-3. Busca archivos que empiecen con `mucosaview_backup_`
-4. Si no aparecen, verifica permisos: Ajustes → Apps → MucosaView → Permisos → Fotos y videos (debe estar permitido)
+**Ventajas de este método:**
+- ✅ No requiere permisos especiales
+- ✅ Funciona en todas las versiones de Android
+- ✅ El usuario tiene control total
+- ✅ Puede compartir a múltiples destinos
+- ✅ Sin errores de MIME type o permisos
 
 ### Sincronización falló pero no sé qué datos se perdieron
 1. Ve a "Cola de sincronización"
@@ -529,20 +535,25 @@ Para más información:
 
 ## 🔄 Versiones
 
-### v1.4.2 (Actual) - 21 de enero 2026
-**Exportación Funcional a Downloads:**
-- ✅ Implementado MediaLibrary para guardar archivos en Downloads
-- ✅ Solicitud automática de permisos al exportar
-- ✅ Archivos .db ahora aparecen en carpeta Downloads del dispositivo
-- ✅ Compatible con Android 7+ hasta Android 14+
-- ✅ Exportación de DB y JSON 100% funcional
-- ✅ Los archivos exportados son inmediatamente accesibles
+### v1.4.3 (Actual) - 21 de enero 2026
+**Exportación con Diálogo Nativo de Compartir:**
+- ✅ Implementado expo-sharing (reemplaza expo-media-library)
+- ✅ Al exportar, se abre el diálogo nativo de Android para compartir
+- ✅ El usuario elige dónde guardar: Downloads, WhatsApp, Gmail, Drive, etc.
+- ✅ Funciona con cualquier tipo de archivo (.db, .json)
+- ✅ Sin errores de MIME type
+- ✅ Más intuitivo y compatible con todas las versiones de Android
 
 **Solución definitiva:**
-- Ya no se guardan en directorio privado de la app
-- MediaLibrary maneja permisos automáticamente
-- Los archivos son visibles en el explorador de archivos
-- Se puede compartir directamente desde Downloads
+- Removido MediaLibrary que causaba error con archivos .db
+- El usuario tiene control total sobre dónde guardar el backup
+- Compatible con todas las apps de almacenamiento y mensajería
+- Funciona en Android 7+ hasta Android 14+
+
+### v1.4.2 - 21 de enero 2026
+**Intento con MediaLibrary (deprecado):**
+- Implementado MediaLibrary para guardar en Downloads
+- Error: MediaLibrary solo acepta imágenes/videos, no archivos .db
 
 ### v1.4.1 - 21 de enero 2026
 **Mejoras de Permisos:**
@@ -572,16 +583,16 @@ Para más información:
 
 ---
 
-## 🎯 Características Destacadas v1.4.2
+## 🎯 Características Destacadas v1.4.3
 
-### 🆕 Novedades v1.4.2
-1. **MediaLibrary Integration**: Guardar archivos directamente en Downloads
-2. **Exportación 100% Funcional**: Los archivos .db aparecen en Downloads
-3. **Permisos Automáticos**: MediaLibrary solicita permisos sin configuración manual
-4. **Acceso Inmediato**: Archivos visibles en explorador de archivos
-5. **Compatibilidad Total**: Android 7+ hasta Android 14+
+### 🆕 Novedades v1.4.3
+1. **Diálogo Nativo de Compartir**: Usa expo-sharing para compatibilidad universal
+2. **Exportación Flexible**: El usuario elige dónde guardar (Downloads, WhatsApp, Drive, etc.)
+3. **Sin Errores de MIME**: Funciona con cualquier tipo de archivo (.db, .json)
+4. **UX Mejorada**: Más intuitivo que versiones anteriores
+5. **Compatibilidad Total**: Android 7+ hasta Android 14+ sin problemas
 
-### ✨ Funcionalidades Principales (v1.4.0 a v1.4.2)
+### ✨ Funcionalidades Principales (v1.4.0 a v1.4.3)
 1. **Pantalla de Bienvenida**: Explica el propósito de la app con navegación intuitiva
 2. **Sincronización 100% Manual**: Control total sobre cuándo sincronizar
 3. **Backup Automático**: Crea JSON de cada registro guardado

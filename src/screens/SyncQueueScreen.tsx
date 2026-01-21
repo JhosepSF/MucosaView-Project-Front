@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, Alert, ScrollView, Share } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Modal, Alert, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { debugDumpQueue, trySync } from '../libs/sync';
-import { exportDatabase, exportAllDataAsJSON, cleanOldBackups } from '../libs/backup';
+import { exportDatabase, exportAllDataAsJSON, cleanOldBackups, shareFile } from '../libs/backup';
 import { commonStyles, COLORS } from '../styles';
 
 type QueueItem = {
@@ -65,25 +65,14 @@ export default function SyncQueueScreen() {
   const onExportDatabase = async () => {
     try {
       const filepath = await exportDatabase();
+      
+      // Compartir inmediatamente usando el diálogo nativo
+      await shareFile(filepath, 'Backup MucosaView Database');
+      
       Alert.alert(
         '✅ Base de datos exportada',
-        `Archivo guardado en:\n${filepath}\n\n¿Deseas compartirlo?`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Compartir',
-            onPress: async () => {
-              try {
-                await Share.share({ 
-                  url: filepath,
-                  title: 'Backup MucosaView Database'
-                });
-              } catch (error) {
-                console.error('Error al compartir:', error);
-              }
-            }
-          }
-        ]
+        'El archivo se ha compartido. Guárdalo en Downloads, WhatsApp, email, etc.',
+        [{ text: 'OK' }]
       );
     } catch (error) {
       Alert.alert('Error', 'No se pudo exportar la base de datos: ' + String(error));
@@ -97,25 +86,13 @@ export default function SyncQueueScreen() {
       // Limpiar backups antiguos
       await cleanOldBackups(10);
       
+      // Compartir inmediatamente
+      await shareFile(filepath, 'Backup MucosaView JSON');
+      
       Alert.alert(
         '✅ Datos exportados a JSON',
-        `Archivo guardado en:\n${filepath}\n\n¿Deseas compartirlo?`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Compartir',
-            onPress: async () => {
-              try {
-                await Share.share({ 
-                  url: filepath,
-                  title: 'Backup MucosaView JSON'
-                });
-              } catch (error) {
-                console.error('Error al compartir:', error);
-              }
-            }
-          }
-        ]
+        'El archivo se ha compartido. Guárdalo donde prefieras.',
+        [{ text: 'OK' }]
       );
     } catch (error) {
       Alert.alert('Error', 'No se pudo exportar los datos: ' + String(error));
